@@ -96,8 +96,14 @@ def getHistSeparation( sig,bkg ):
 
 def getSeparation( sig,bkg ):
     """Calculate separation between two numpy arrays (any dimension!)"""
-    assert sig.shape==bkg.shape
-    assert sig+bkg!=0
+    try:
+        matching_shapes = sig.shape==bkg.shape
+    except AttributeError:
+        matching_shapes = len(sig)==len(bkg)
+    nonzero_sum = (sig+bkg).all()!=0
+
+    if not matching_shapes: return -1
+    if not nonzero_sum:     return -1
 
     sig /= sig.sum()
     bkg /= bkg.sum()

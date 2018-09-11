@@ -30,7 +30,6 @@ try:
 except KeyError:
     cwd = os.getcwd()
     hpd = cwd.replace("asimov","hepPlotter/python/")
-    print cwd,hpd
     if hpd not in sys.path:
         sys.path.insert(0,hpd)
     from histogram1D import Histogram1D
@@ -77,18 +76,18 @@ class Empire(object):
         self.classCollection.clear()
         for i,nc in enumerate(nn_classes):
             tmp = nc
-            tmp.label = self.sample_labels[n].label
+            tmp.label = self.sample_labels[nc.name].label
             tmp.color = self.betterColors[i]
             self.classCollection.append(tmp)
 
         # Create unique combinations of the targets in pairs 
         # (to calculate separation between classes in two dimensions)
-        self.class_pairs = list(itertools.combinations(self.classCollection.names,2))
+        self.class_pairs = list(itertools.combinations(self.classCollection.names(),2))
 
         return
 
 
-    def features(self,dataframe):
+    def feature(self,dataframe):
         """
         Plot the features
           For classification, compare different targets
@@ -129,9 +128,9 @@ class Empire(object):
                 kwargs = {"draw_type":"step","edgecolor":c.color,"label":c.label}
 
                 # Put into histogram before passing to hepPlotter to reduce memory
-                h,bx = np.histogram(df[df.target==c.value][feature],bins=vl.binning)
+                h,bx = np.histogram(dataframe[dataframe.target==c.value][feature],bins=vl.binning)
                 bin_centers = 0.5*(bx[:-1]+bx[1:])
-                hist.Add(bin_centers,weights=h,name=target.name,**kwargs)
+                hist.Add(bin_centers,weights=h,name=c.name,**kwargs)
                 histValues[c.name] = h
 
             # Add ratio plot comparing the targets (in pairs) for this feature
@@ -183,13 +182,17 @@ class Empire(object):
                 hist.initialize()
 
                 # save memory by making the histogram here and passing the result to hepPlotter
-                h,binsx,binsy = np.histogram2d(c.df[xfeature],c.df[yfeature],bins=[xbins,ybins])
+                xdf = dataframe[dataframe.target==c.value][xfeature]
+                ydf = dataframe[dataframe.target==c.value][yfeature]
+                h,binsx,binsy = np.histogram2d(xdf,ydf,bins=[xbins,ybins])
                 histValues[c.name] = h
                 # h[0] yields the y-axis array for the first bin in x
 
                 # create dummy binning
-                xdummy = binsx.repeat(len(binsy)-1)
-                ydummy = np.tile(binsy, (1,len(binsx)-1) )[0]
+                binsx  = 0.5*(binsx[:-1]+binsx[1:])
+                binsy  = 0.5*(binsy[:-1]+binsy[1:])
+                xdummy = binsx.repeat(len(binsy))
+                ydummy = np.tile(binsy, (1,len(binsx)) )[0]
 
                 hist.Add([xdummy,ydummy],weights=h.flatten(),name=c.name)
 
@@ -200,7 +203,7 @@ class Empire(object):
             for pair in self.class_pairs:
                 data_a = histValues[pair[0]]
                 data_b = histValues[pair[1]]
-                separation = util.getSeparation2D(data_a,data_b)
+                separation = util.getSeparation(data_a,data_b)
                 self.separations['-'.join(featurepairs)]['-'.join(pair)] = separation
 
         ## ++ Save separation info to CSV file
@@ -221,7 +224,7 @@ class Empire(object):
                     feature_x,feature_y = f.split('-')
                     fcsv2.write("{0},{1},{2}".format(feature_x,feature_y,separation))
                 else:
-                    fcsv1.write("{0},{1}".format(f,))
+                    fcsv1.write("{0},{1}".format(f,separation))
 
             fcsv1.close() 
             fcsv2.close() 
@@ -232,8 +235,6 @@ class Empire(object):
 
     def separation(self):
         """Plot the separations between classes of the NN for different features"""
-        if not self.loaded_separations: return
-
         listOfFeatures     = list(self.features)
         listOfFeaturePairs = list(self.featurePairs)
         featurelabels      = [self.variable_labels[f].label for f in self.features]
@@ -392,7 +393,7 @@ class Empire(object):
             json_data = {}
             for t,cc in enumerate(self.classCollection):
 
-                target_value = target.value  # arrays for multiclassification 
+                target_value = cc.value  # arrays for multiclassification 
 
                 train_t = train_data[c.name][cc.name]
                 test_t  = test_data[c.name][cc.name]
@@ -403,18 +404,16 @@ class Empire(object):
                                 "color":cc.color,"linewidth":0,"alpha":0.5,
                                 "label":cc.label+" Test"}
 
-                hist.Add(train_t,name=cc.name+'_train',**train_kwargs) # Training
-                hist.Add(test_t,name=cc.name+'_test',**test_kwargs)    # Testing
+                hist.Add(train_t[0],name=cc.name+'_train',**train_kwargs) # Training
+                hist.Add(test_t[0],name=cc.name+'_test',**test_kwargs)    # Testing
 
                 hist.ratio.Add(numerator=cc.name+'_train',denominator=cc.name+'_test')
 
                 ## Save data to JSON file
-                d_tr = hpt.hist2list(train_t)
-                d_te = hpt.hist2list(test_t)
-                json_data[cc.name+"_train"] = {"binning":d_tr.bins.tolist(),
-                                               "content":d_tr.content.tolist()}
-                json_data[cc.name+"_test"]  = {"binning":d_te.bins.tolist(),
-                                               "content":d_te.content.tolist()}
+                json_data[cc.name+"_train"] = {"binning":train_t[1].tolist(),
+                                               "content":train_t[0].tolist()}
+                json_data[cc.name+"_test"]  = {"binning":test_t[1].tolist(),
+                                               "content":test_t[0].tolist()}
 
             p = hist.execute()
             hist.savefig()
@@ -424,7 +423,7 @@ class Empire(object):
             for t,target in enumerate(self.class_pairs):
                 data_a = json_data[ target[0]+"_test" ]["content"]
                 data_b = json_data[ target[1]+"_test" ]["content"]
-                separation = util.getSeparation(data_a,data_b)
+                separation = util.getSeparation(np.asarray(data_a),np.asarray(data_b))
                 json_data[ '-'.join(target)+"_test" ] = {"separation":separation}
                 separations['-'.join(target)] = separation
 
@@ -434,7 +433,7 @@ class Empire(object):
 
 
             ## Plot separation between predictions for given target
-            saveAs = "{0}/hist_DNN_prediction_sep_{1}".format(self.output_dir,tt.name)
+            saveAs = "{0}/hist_DNN_prediction_sep_{1}".format(self.output_dir,c.name)
             sorted_sep = sorted(separations, key=separations.__getitem__) # sort data by separation value
 
             # make the bar plot
@@ -481,8 +480,8 @@ class Empire(object):
         ax.set_xlim([0.0, 1.0])
         ax.set_ylim([0.0, 1.5])
 
-        ax.set_xlabel(r'Background $\epsilon',ha='right',va='top',position=(1,0))
-        ax.set_ylabel(r'Signal $epsilon',ha='right',va='bottom',position=(0,1))
+        ax.set_xlabel(r'Background $\epsilon$',ha='right',va='top',position=(1,0))
+        ax.set_ylabel(r'Signal $epsilon$',ha='right',va='bottom',position=(0,1))
 
         ax.set_xticklabels([self.formatter(i) for i in ax.get_xticks()],fontsize=20)
         ax.set_yticklabels([self.formatter(i) for i in ax.get_yticks()],fontsize=20)
@@ -548,7 +547,7 @@ class Empire(object):
             leg = ax.legend(loc=1,numpoints=1,fontsize=12,ncol=1,columnspacing=0.3)
             leg.draw_frame(False)
 
-            plt.savefig(self.output_dir+'/{0}_epochs.{2}'.format(key,self.image_format),
+            plt.savefig(self.output_dir+'/{0}_epochs.{1}'.format(key,self.image_format),
                         format=self.image_format,bbox_inches='tight',dpi=200)
             plt.close()
 

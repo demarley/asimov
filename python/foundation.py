@@ -56,6 +56,8 @@ class Foundation(object):
         self.features = []          # List of features used in the analysis
         self.classes  = {}          # classes for neural network {"name":value}
         self.classCollection = None # storing information about the different classes
+        self.sample_labels = {}
+        self.variable_labels = {}
 
         ## NN architecture & parameters -- set by config file
         self.treename   = 'features'    # Name of TTree to access in ROOT file (via uproot)
@@ -66,21 +68,21 @@ class Foundation(object):
         self.output_dir = 'data/dnn/'   # directory for storing NN data
         self.runDiagnostics = False     # Make plots pre/post training
         self.msg_svc = None
-        self.verbose = False
+        self.verbose = True
         self.equal_statistics = True    # Equal statistics for each class in the df
 
 
 
     def initialize(self):
         """Initialize a few parameters after they've been set by user"""
-        self.verbose = not self.msg_svc.compare("WARNING")
+        self.verbose = self.msg_svc.compare("WARNING")  # if verbose level < "WARNING", verbose output!
 
         # Use input filename to generate model name
         if not self.model_name:
             self.model_name = self.hep_data.split('/')[-1].split('.')[0]+'_'+self.date
 
         # Store NN classes in custom object
-        self.classCollection = NNClassCollection()
+        self.classCollection = util.NNClassCollection()
         for n,v in self.classes.iteritems():
             nn_class = util.NNClass(n)
             nn_class.value = v
@@ -88,11 +90,13 @@ class Foundation(object):
 
 
         ## -- Plotting framework
-        self.plotter = DeepLearningPlotter()  # class for plotting relevant NN information
+        self.plotter = Empire()  # class for plotting relevant NN information
         self.plotter.output_dir   = self.output_dir
         self.plotter.image_format = 'pdf'
         self.plotter.features     = self.features
         self.plotter.msg_svc      = self.msg_svc
+        self.plotter.sample_labels   = self.sample_labels
+        self.plotter.variable_labels = self.variable_labels
         self.plotter.initialize(self.classCollection)
 
         return
@@ -141,18 +145,25 @@ class Foundation(object):
 
         # Make the dataset sizes equal for the different classes
         if self.equal_statistics:
-			for td,cdf in enumerate(class_dfs):
-				# shuffle entries and select first events up to 'min_size'
-				if cdf.shape[0]>min_size:
-					class_dfs[td] = class_dfs[td].sample(frac=1)[0:min_size]
+            for td,cdf in enumerate(class_dfs):
+                # shuffle entries and select first events up to 'min_size'
+                if cdf.shape[0]>min_size:
+                    class_dfs[td] = class_dfs[td].sample(frac=1)[0:min_size]
 
         self.df = pd.concat( class_dfs ).sample(frac=1) # re-combine & shuffle entries
+
+        self.df = self.df[ (self.df.AK4_deepCSVb>=0) & \
+                           (self.df.AK4_deepCSVbb>=0) & \
+                           (self.df.AK4_deepCSVc>=0) & \
+                           (self.df.AK4_deepCSVl>=0) ]
 
         return
 
 
     def save_model(self):
         """Save the model for use later"""
+        self.msg_svc.INFO("DL : Save model")
+
         output = self.output_dir+'/'+self.model_name
 
         if self.lwtnn:
@@ -182,7 +193,6 @@ class Foundation(object):
             keys = featureKeys.keys()
             featureKey = max([int(i) for i in keys])+1 if keys else 0
             featureKeys[str(featureKey)] = self.features
-            vb.INFO("RUN :  New features for NN ")
             with open(featureKeysFile,'w') as outfile:
                 json.dump(featureKeys,outfile)
 
@@ -228,7 +238,7 @@ class Foundation(object):
         # Plots to make pre-training
         if pre:
             self.msg_svc.INFO("DL : -- pre-training :: features")
-            self.plotter.features(self.df)           # compare features
+            self.plotter.feature(self.df)           # compare features
 
             self.msg_svc.INFO("DL : -- pre-training :: correlations")
             corrmats = {}
