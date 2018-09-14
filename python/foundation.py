@@ -23,6 +23,7 @@ NB PyTorch currently unsupported
 """
 import json
 import datetime
+import operator
 from collections import Counter
 
 import util
@@ -133,8 +134,12 @@ class Foundation(object):
         return
 
 
-    def preprocess_data(self):
-        """Manipulate dataframe and keep only the necessary data"""
+    def preprocess_data(self,slices=[]):
+        """Manipulate dataframe and keep only the necessary data
+           @param slices    list of strings that contain arguments (separated by spaces) for slicing the dataframe
+                            e.g., ['AK4_DeepCSVb >= 0','AK4_DeepCSVbb >= 0']
+                            these selections are applied to the dataframe
+        """
         class_dfs = []
         min_size  = self.df.shape[0]
         for k in self.classCollection:
@@ -152,10 +157,16 @@ class Foundation(object):
 
         self.df = pd.concat( class_dfs ).sample(frac=1) # re-combine & shuffle entries
 
-        self.df = self.df[ (self.df.AK4_deepCSVb>=0) & \
-                           (self.df.AK4_deepCSVbb>=0) & \
-                           (self.df.AK4_deepCSVc>=0) & \
-                           (self.df.AK4_deepCSVl>=0) ]
+        opts = {">":operator.gt,">=":operator.ge,
+                "<":operator.lt,"<=":operator.le,
+                "==":operator.eq,"!=":operator.ne}
+        for slice in slices:
+            arg,opt,val = slice.split(" ")
+            opt   = opts[opt]
+            dtype = self.df[arg].dtype.name
+            val   = getattr(np,dtype)(val)
+
+            self.df = self.df[ opt(self.df[arg],val) ]
 
         return
 

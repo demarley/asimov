@@ -118,7 +118,8 @@ class Empire(object):
             hist.CMSlabelStatus = self.CMSlabelStatus
 
             hist.ratio.value  = "significance"
-            hist.ratio.ylabel = r"S/$\sqrt{\text{B}}$"
+            hist.ratio.ylabel = r"Sig."
+            hist.ratio.update_legend = True
 
             hist.initialize()
 
@@ -135,8 +136,20 @@ class Empire(object):
 
             # Add ratio plot comparing the targets (in pairs) for this feature
             # e.g., feature (QCD) vs feature (QB), etc.
+            numerators = {}
+            markers = ['o','v','^']         # for ratios with the same numerator, change the marker style
             for pair in self.class_pairs:
-                hist.ratio.Add(numerator=pair[0],denominator=pair[1],draw_type='errorbar')
+                try:
+                    idx = numerators[pair[0]]
+                    numerators[pair[0]]+=1
+                except KeyError:
+                    idx = 0
+                    numerators[pair[0]]=1
+                num = self.classCollection.get(pair[0])
+                den = self.classCollection.get(pair[1])
+                hist.ratio.Add(numerator=pair[0],denominator=pair[1],draw_type='errorbar',
+                               mec=num.color,mfc=num.color,fmt=markers[idx],
+                               label=r"%s/$sqrt{\text{%s}}$"%(num.label,den.label))
 
             p = hist.execute()
             hist.savefig()
