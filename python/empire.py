@@ -64,12 +64,11 @@ class Empire(object):
         self.CMSlabelStatus  = "Simulation Internal"     # plot label 
 
 
-    def initialize(self,nn_classes,get_separations=True):
+    def initialize(self,nn_classes):
         """
         Set parameters of class to make plots
 
         @param nn_classes       Collection of NNClass() objects
-        @param get_separations  Boolean to calculate and plot separations
         """
         self.featurePairs = list(itertools.combinations(self.features,2))
 
@@ -148,17 +147,21 @@ class Empire(object):
                 num = self.classCollection.get(pair[0])
                 den = self.classCollection.get(pair[1])
                 hist.ratio.Add(numerator=pair[0],denominator=pair[1],draw_type='errorbar',
-                               mec=num.color,mfc=num.color,fmt=markers[idx],
-                               label=r"%s/$sqrt{\text{%s}}$"%(num.label,den.label))
+                               mec=num.color,mfc=num.color,ecolor=num.color,fmt=markers[idx],
+                               label=r"%s/$\sqrt{\text{%s}}$"%(num.label,den.label))
 
             p = hist.execute()
             hist.savefig()
 
             ## Calculate 1D separations for this feature between classes
+            print feature
             for pair in self.class_pairs:
                 data_a = histValues[pair[0]]
                 data_b = histValues[pair[1]]
                 separation = util.getSeparation(data_a,data_b)
+                print pair
+                print data_a,data_b
+                print separation,'\n'
                 self.separations[feature]['-'.join(pair)] = separation
 
         ## ++ Plot two features against each other for each target (multi-jet,W,QB,tt_bckg)
@@ -409,16 +412,24 @@ class Empire(object):
                 target_value = cc.value  # arrays for multiclassification 
 
                 train_t = train_data[c.name][cc.name]
-                test_t  = test_data[c.name][cc.name]
+                train_weights = train_t[0]
+                train_bins    = train_t[1]
+                train_dummy   = hpt.midpoints(train_bins)
+                train_kwargs  = {"draw_type":"step","edgecolor":cc.color,
+                                 "label":cc.label+" Train"}
 
-                train_kwargs = {"draw_type":"step","edgecolor":cc.color,
-                                "label":cc.label+" Train"}
+                test_t  = test_data[c.name][cc.name]
+                test_weights = test_t[0]
+                test_bins    = test_t[1]
+                test_dummy   = hpt.midpoints(test_bins)
                 test_kwargs  = {"draw_type":"stepfilled","edgecolor":cc.color,
                                 "color":cc.color,"linewidth":0,"alpha":0.5,
                                 "label":cc.label+" Test"}
 
-                hist.Add(train_t[0],name=cc.name+'_train',**train_kwargs) # Training
-                hist.Add(test_t[0],name=cc.name+'_test',**test_kwargs)    # Testing
+                hist.Add(train_dummy,binning=train_bins,weights=train_weights,\
+                         name=cc.name+'_train',**train_kwargs) # Training
+                hist.Add(test_dummy,binning=test_bins,weights=test_weights,\
+                         name=cc.name+'_test',**test_kwargs)    # Testing
 
                 hist.ratio.Add(numerator=cc.name+'_train',denominator=cc.name+'_test')
 
