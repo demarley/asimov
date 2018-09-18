@@ -109,7 +109,7 @@ class Training(Foundation):
     ## Specific functions to perform training/inference tasks
     def build_model(self):
         """Construct the NN model -- only Keras support for now"""
-        self.msg_svc.INFO("DL : Build the neural network ")
+        self.msg_svc.DEBUG("TRAINING : Build the neural network ")
 
         ## Declare the model
         self.model = Sequential()
@@ -142,7 +142,7 @@ class Training(Foundation):
 
     def train_model(self):
         """Setup for training the model using k-fold cross-validation"""
-        self.msg_svc.INFO("DL : Train the model!")
+        self.msg_svc.DEBUG("TRAINING : Train the model!")
         self.split_dataset()
 
         # - Adjust shape of true values (matrix for multiple outputs)
@@ -163,7 +163,7 @@ class Training(Foundation):
 
     def evaluate_model(self):
         """Evaluate the model."""
-        self.msg_svc.INFO("DL : Evaluate the model ")
+        self.msg_svc.DEBUG("TRAINING : Evaluate the model ")
 
         train_predictions = self.predict(self.X_train) # predictions from training sample
         test_predictions  = self.predict(self.X_test)  # predictions from testing sample
@@ -203,7 +203,7 @@ class Training(Foundation):
         self.msg_svc.INFO("DL : Plot the train/test predictions")
         self.plotter.prediction(h_trains,h_tests)   # compare DNN prediction for different targets
 
-        self.msg_svc.INFO("DL :   Finished fitting model ")
+        self.msg_svc.DEBUG("TRAINING :   Finished fitting model ")
 
         return
 

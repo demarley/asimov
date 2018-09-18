@@ -106,10 +106,10 @@ class Foundation(object):
 
     def predict(self,data=None):
         """Return the prediction from a test sample"""
-        self.msg_svc.DEBUG("DL : Get the DNN prediction")
+        self.msg_svc.DEBUG("FOUNDATION : Get the DNN prediction")
         if data is None:
-            self.msg_svc.ERROR("DL : predict() given NoneType data. Returning -999.")
-            self.msg_svc.ERROR("DL : Please check your configuration!")
+            self.msg_svc.ERROR("FOUNDATION : predict() given NoneType data. Returning -999.")
+            self.msg_svc.ERROR("FOUNDATION : Please check your configuration!")
             return -999.
         return self.model.predict( data )
 
@@ -123,7 +123,7 @@ class Foundation(object):
         @param extra_variables   If there are extra variables to plot/analyze, 
                                  that aren't features of the NN, include them here
         """
-        self.msg_svc.INFO("DL : Load HEP data")
+        self.msg_svc.DEBUG("FOUNDATION : Load HEP data")
 
         file = uproot.open(self.hep_data)
         data = file[self.treename]
@@ -140,6 +140,8 @@ class Foundation(object):
                             e.g., ['AK4_DeepCSVb >= 0','AK4_DeepCSVbb >= 0']
                             these selections are applied to the dataframe
         """
+        self.msg_svc.DEBUG("FOUNDATION : Preprocess data")
+
         class_dfs = []
         min_size  = self.df.shape[0]
         for k in self.classCollection:
@@ -173,7 +175,7 @@ class Foundation(object):
 
     def save_model(self):
         """Save the model for use later"""
-        self.msg_svc.INFO("DL : Save model")
+        self.msg_svc.DEBUG("FOUNDATION : Save model")
 
         output = self.output_dir+'/'+self.model_name
 
@@ -228,6 +230,8 @@ class Foundation(object):
 
     def load_model(self):
         """Load existing model to make plots or predictions"""
+        self.msg_svc.DEBUG("FOUNDATION : Load model")
+
         self.model = None
 
         if self.lwtnn:
@@ -244,30 +248,30 @@ class Foundation(object):
 
     def diagnostics(self,pre=False,post=False,**kwargs):
         """Diagnostic tests of the NN"""
-        self.msg_svc.INFO("DL : Diagnostics")
+        self.msg_svc.DEBUG("FOUNDATION : Diagnostics")
 
         # Plots to make pre-training
         if pre:
             # Use **kwargs to limit feature plots to 1D
             ndims = kwargs.get("ndims",-1)
-            self.msg_svc.INFO("DL : -- pre-training :: features")
+            self.msg_svc.INFO("FOUNDATION : -- pre-training :: features")
             self.plotter.feature(self.df,ndims=ndims) # compare features
 
-            self.msg_svc.INFO("DL : -- pre-training :: correlations")
+            self.msg_svc.INFO("FOUNDATION : -- pre-training :: correlations")
             corrmats = {}
             for c in self.classCollection:
                 t_ = self.df[self.df.target==c.value].drop('target',axis=1)
                 corrmats[c.name] = t_.corr()
             self.plotter.correlation(corrmats)        # correlations between features
 
-            self.msg_svc.INFO("DL : -- pre-training :: separations")
+            self.msg_svc.INFO("FOUNDATION : -- pre-training :: separations")
             self.plotter.separation()                 # separations between classes
 
         # Plots to make post-training/testing
         if post:
-            self.msg_svc.INFO("DL : -- post-training :: ROC")
+            self.msg_svc.INFO("FOUNDATION : -- post-training :: ROC")
             self.plotter.ROC(self.fpr,self.tpr,self.roc_auc)   # Signal vs background eff
-            self.msg_svc.INFO("DL : -- post-training :: History")
+            self.msg_svc.INFO("FOUNDATION : -- post-training :: History")
             self.plotter.history(self.history)                 # loss vs epoch
 
         return

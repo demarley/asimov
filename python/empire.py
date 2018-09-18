@@ -96,7 +96,7 @@ class Empire(object):
         @param ndims        Number of dimensions to plot (-1=ALL; 1=1D features only) 
                             [always plot 1D features, for now]
         """
-        self.msg_svc.INFO("DL : Plotting features.")
+        self.msg_svc.DEBUG("DL : Plotting features.")
 
         self.separations = dict( (k,{}) for k in self.features)
         for featurepairs in self.featurePairs:
@@ -252,6 +252,8 @@ class Empire(object):
 
     def separation(self):
         """Plot the separations between classes of the NN for different features"""
+        self.msg_svc.DEBUG("DL : Plotting separations.")
+
         listOfFeatures     = list(self.features)
         listOfFeaturePairs = list(self.featurePairs)
         featurelabels      = [self.variable_labels[f].label for f in self.features]
@@ -341,6 +343,8 @@ class Empire(object):
 
     def correlation(self,corrmats={}):
         """Plot correlations between features of the NN"""
+        self.msg_svc.DEBUG("DL : Plotting correlations.")
+
         opts = {'cmap':plt.get_cmap("bwr"),'vmin':-1,'vmax':1}
 
         for c in self.classCollection:
@@ -389,7 +393,7 @@ class Empire(object):
           (e.g., QCD prediction to be QCD; Top prediction to be QCD, etc)
           Need two-dimensional arrays/dictionaries to achieve this
         """
-        self.msg_svc.INFO("DL : Plotting DNN prediction. ")
+        self.msg_svc.DEBUG("DL : Plotting DNN prediction. ")
 
         for c in self.classCollection:
             target_label = self.sample_labels[c.name].label
@@ -496,7 +500,7 @@ class Empire(object):
 
     def ROC(self,fprs={},tprs={},roc_auc={}):
         """Plot the ROC curve & save to text file"""
-        self.msg_svc.INFO("DL : Plotting ROC curve.")
+        self.msg_svc.DEBUG("DL : Plotting ROC curve.")
 
         saveAs = "{0}/roc_curve".format(self.output_dir)
 
@@ -562,7 +566,7 @@ class Empire(object):
 
     def history(self,history,kfold=-1):
         """Plot history as a function of epoch for model"""
-        self.msg_svc.INFO("DL : Plotting loss as a function of epoch number.")
+        self.msg_svc.DEBUG("DL : Plotting loss as a function of epoch number.")
 
         for key in ['loss','acc']:
             fig,ax = plt.subplots()
@@ -596,13 +600,11 @@ class Empire(object):
     def stamp_energy(self,axis,ha='right',coords=[0.99,1.00],fontsize=16,va='bottom'):
         energy_stamp = hpl.EnergyStamp()
         axis.text(coords[0],coords[1],energy_stamp.text,fontsize=fontsize,ha=ha,va=va,transform=axis.transAxes)
-
         return
 
     def stamp_cms(self,axis,ha='left',va='bottom',coords=[0.02,1.00],fontsize=16):
         cms_stamp = hpl.CMSStamp(self.CMSlabelStatus)
         axis.text(coords[0],coords[1],cms_stamp.text,fontsize=fontsize,ha=ha,va=va,transform=axis.transAxes)
-
         return
 
 
