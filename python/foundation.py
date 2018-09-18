@@ -242,24 +242,26 @@ class Foundation(object):
 
 
 
-    def diagnostics(self,pre=False,post=False):
+    def diagnostics(self,pre=False,post=False,**kwargs):
         """Diagnostic tests of the NN"""
         self.msg_svc.INFO("DL : Diagnostics")
 
         # Plots to make pre-training
         if pre:
+            # Use **kwargs to limit feature plots to 1D
+            ndims = kwargs.get("ndims",-1)
             self.msg_svc.INFO("DL : -- pre-training :: features")
-            self.plotter.feature(self.df)           # compare features
+            self.plotter.feature(self.df,ndims=ndims) # compare features
 
             self.msg_svc.INFO("DL : -- pre-training :: correlations")
             corrmats = {}
             for c in self.classCollection:
                 t_ = self.df[self.df.target==c.value].drop('target',axis=1)
                 corrmats[c.name] = t_.corr()
-            self.plotter.correlation(corrmats)       # correlations between features
+            self.plotter.correlation(corrmats)        # correlations between features
 
             self.msg_svc.INFO("DL : -- pre-training :: separations")
-            self.plotter.separation()                # separations between classes
+            self.plotter.separation()                 # separations between classes
 
         # Plots to make post-training/testing
         if post:

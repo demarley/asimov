@@ -11,7 +11,7 @@ File that holds any and all misc. functions / objects
 to be called from other python scripts.
 (All information in one file => one location to update!)
 """
-
+import numpy as np
 
 
 class NNClass(object):
@@ -100,14 +100,16 @@ def getSeparation( sig,bkg ):
         matching_shapes = sig.shape==bkg.shape
     except AttributeError:
         matching_shapes = len(sig)==len(bkg)
-    nonzero_sum = (sig+bkg).all()!=0
+    sig_sum  = np.all(sig==0)
+    bkg_sum  = np.all(bkg==0)
+    zero_sum = np.all(sig+bkg==0)
 
     if not matching_shapes: return -1
-    if not nonzero_sum:     return -1
+    if zero_sum or sig_sum or bkg_sum: return -1
 
-    sig /= sig.sum()
-    bkg /= bkg.sum()
-    tmp  = (sig-bkg)**2/(sig+bkg)
+    sig = np.divide(sig,np.sum(sig),dtype=np.float32)
+    bkg = np.divide(bkg,np.sum(bkg),dtype=np.float32)
+    tmp = np.divide( (sig-bkg)**2 , (sig+bkg), dtype=np.float32)
     separation = tmp.sum()*0.5
 
     return separation

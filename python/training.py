@@ -88,16 +88,20 @@ class Training(Foundation):
 
 
 
-    def training(self):
-        """Train NN model"""
-        if self.runDiagnostics: self.diagnostics(pre=True)
+    def train(self,**kwargs):
+        """
+        Train NN model
+
+        @param kwargs   Pass extra arguments to limit plots (few supported options atm)
+        """
+        self.diagnostics(pre=self.runDiagnostics, **kwargs)
 
         self.build_model()
         self.train_model()
         self.save()
         self.evaluate_model()
 
-        if self.runDiagnostics: self.diagnostics(post=True)
+        self.diagnostics(post=self.runDiagnostics)
 
         return
 
