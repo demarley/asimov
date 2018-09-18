@@ -2,13 +2,16 @@
 
 Minimalistic python framework for training HEP-based neural networks.  
 
-_Under development_
-
 Developed to read ROOT files (via [uproot](https://github.com/scikit-hep/uproot)) 
 and pass the data to [keras](https://keras.io/) (+[tensorflow](https://www.tensorflow.org/)) for machine learning.
 
 The framework uses a single text file to quickly prototype different hyperparameter configurations.
-Relevant plots (to our analysis work) are generated with matplotlib (& [hepPlotter](https://github.com/demarley/hepPlotter)) and saved as well.
+Relevant plots (to our analysis work) are generated with [hepPlotter](https://github.com/demarley/hepPlotter).
+
+## Getting Started
+
+Clone the repository.
+
 
 ## Software Versions
 
@@ -18,6 +21,7 @@ Relevant plots (to our analysis work) are generated with matplotlib (& [hepPlott
 - tensorflow
 - uproot
 - hepPlotter
+
 
 # Questions or Comments
 
