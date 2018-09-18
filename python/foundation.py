@@ -123,7 +123,7 @@ class Foundation(object):
         @param extra_variables   If there are extra variables to plot/analyze, 
                                  that aren't features of the NN, include them here
         """
-        self.msg_svc.DEBUG("FOUNDATION : Load HEP data")
+        self.msg_svc.INFO("FOUNDATION : Load HEP data")
 
         file = uproot.open(self.hep_data)
         data = file[self.treename]
