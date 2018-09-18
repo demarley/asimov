@@ -120,7 +120,7 @@ class Empire(object):
             hist.legend['fontsize'] = 10
 
             hist.ratio.value  = "significance"
-            hist.ratio.ylabel = r"Sig."
+            hist.ratio.ylabel = r"S(A/$\sqrt{\text{B}}$"
             hist.ratio.update_legend = True
 
             hist.initialize()
@@ -150,8 +150,8 @@ class Empire(object):
                 num = self.classCollection.get(pair[0])
                 den = self.classCollection.get(pair[1])
                 hist.ratio.Add(numerator=pair[0],denominator=pair[1],draw_type='errorbar',
-                               mec=num.color,mfc=num.color,ecolor=num.color,fmt=markers[idx],
-                               label=r"%s/$\sqrt{\text{%s}}$"%(num.label,den.label))
+                               mec='k',mfc=num.color,ecolor=num.color,fmt=markers[idx],
+                               label=r"S({0},{1})".format(num.label,den.label))
 
             p = hist.execute()
             hist.savefig()
@@ -182,7 +182,7 @@ class Empire(object):
                 histValues[c.name] = h
                 # h[0] yields the y-axis array for the first bin in x
 
-                if ndims==1: return  # only plot 1D features
+                if ndims==1: continue  # only plot 1D features; still calculate 2D features
 
                 hist = Histogram2D()
 
@@ -239,9 +239,9 @@ class Empire(object):
                 separation = self.separations[f]['-'.join(pair)]
                 if '-' in f:
                     feature_x,feature_y = f.split('-')
-                    fcsv2.write("{0},{1},{2}".format(feature_x,feature_y,separation))
+                    fcsv2.write("{0},{1},{2}\n".format(feature_x,feature_y,separation))
                 else:
-                    fcsv1.write("{0},{1}".format(f,separation))
+                    fcsv1.write("{0},{1}\n".format(f,separation))
 
             fcsv1.close() 
             fcsv2.close() 
@@ -264,6 +264,9 @@ class Empire(object):
             target_a = target[0]
             target_b = target[1]
 
+            target_a_label = self.sample_labels[target_a].label
+            target_b_label = self.sample_labels[target_b].label
+
             ##                                 ##
             ## One dimensional separation plot ##
             ##  - horizontal bar chart         ##
@@ -283,13 +286,13 @@ class Empire(object):
             ax.set_yticks(listOfFeatures)
             ax.set_yticklabels(featurelabels,fontsize=12)
             ax.set_xticklabels([self.formatter(i) for i in ax.get_xticks()])
-            ax.set_xlabel("Separation")
+            ax.set_xlabel("Separation",ha='right',va='top',position=(1,0))
 
             # CMS/COM Energy Label + Signal name
             self.stamp_cms(ax)
             self.stamp_energy(ax)
-            ax.text(0.95,0.05,"{0} - {1}".format(target_a,target_b),fontsize=16,
-                    ha='right',va='bottom',transform=ax.transAxes)
+            ax.text(0.95,0.05,"{0} - {1}".format(target_a_label,target_b_label),
+                              fontsize=16,ha='right',va='bottom',transform=ax.transAxes)
 
             plt.savefig("{0}.{1}".format(saveAs,self.image_format))
             plt.close()
@@ -316,8 +319,8 @@ class Empire(object):
             hist.colormap = 'default'
             hist.colorbar['title'] = "Separation"
 
-            hist.x_label = None
-            hist.y_label = None
+            hist.x_label = "{0} - {1}".format(target_a_label,target_b_label)
+            hist.y_label = ''
             hist.binning = [range(nfeatures+1),range(nfeatures+1)]
             hist.format  = self.image_format
             hist.saveAs  = saveAs
@@ -532,7 +535,7 @@ class Empire(object):
         self.stamp_cms(ax)
         self.stamp_energy(ax)
 
-        leg = ax.legend(fontsize=12)
+        leg = ax.legend(fontsize=12,ncol=2)
         leg.draw_frame(False)
 
         plt.savefig('{0}.{1}'.format(saveAs,self.image_format))

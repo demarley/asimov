@@ -110,6 +110,7 @@ def getSeparation( sig,bkg ):
     sig = np.divide(sig,np.sum(sig),dtype=np.float32)
     bkg = np.divide(bkg,np.sum(bkg),dtype=np.float32)
     tmp = np.divide( (sig-bkg)**2 , (sig+bkg), dtype=np.float32)
+    tmp = np.nan_to_num(tmp)    # set NaN to 0; INF to large number
     separation = tmp.sum()*0.5
 
     return separation
