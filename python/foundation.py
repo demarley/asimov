@@ -162,8 +162,8 @@ class Foundation(object):
         opts = {">":operator.gt,">=":operator.ge,
                 "<":operator.lt,"<=":operator.le,
                 "==":operator.eq,"!=":operator.ne}
-        for slice in slices:
-            arg,opt,val = slice.split(" ")
+        for sl in slices:
+            arg,opt,val = sl.split(" ")
             opt   = opts[opt]
             dtype = self.df[arg].dtype.name
             val   = getattr(np,dtype)(val)
