@@ -30,6 +30,7 @@ try:
 except KeyError:
     cwd = os.getcwd()
     hpd = cwd.replace("asimov","hepPlotter/python/")
+    print cwd,hpd
     if hpd not in sys.path:
         sys.path.insert(0,hpd)
     from histogram1D import Histogram1D
@@ -120,7 +121,7 @@ class Empire(object):
             hist.legend['fontsize'] = 10
 
             hist.ratio.value  = "significance"
-            hist.ratio.ylabel = r"S(A/$\sqrt{\text{B}}$"
+            hist.ratio.ylabel = r"S(A/$\sqrt{\text{B}}$)"
             hist.ratio.update_legend = True
 
             hist.initialize()
@@ -376,7 +377,7 @@ class Empire(object):
             ## CMS/COM Energy Label + Signal name
             self.stamp_cms(ax)
             self.stamp_energy(ax)
-            ax.text(0.03,0.93,c.label,fontsize=16,ha='left',va='bottom',transform=ax.transAxes)
+            ax.text(0.03,0.90,c.label,fontsize=16,ha='left',va='bottom',transform=ax.transAxes)
 
             plt.savefig("{0}.{1}".format(saveAs,self.image_format),
                         format=self.image_format,dpi=300,bbox_inches='tight')
@@ -515,12 +516,19 @@ class Empire(object):
         ax.axhline(y=1,lw=1,c='k',ls='-')
 
         # Plot ROC curve
-        for key in fprs.keys():
-            label = self.sample_labels[key].label
-            ax.plot(fprs[key],tprs[key],label='{0} (AUC={1:.2f})'.format(label,roc_auc[key]),lw=2)
-            # save ROC curve to CSV file (to plot later)
-            csv = [ "{0},{1}".format(fp,tp) for fp,tp in zip(fprs,tprs) ]
-            util.to_csv("{0}.csv".format(saveAs),csv)
+        keys   = fprs.keys()
+        binary = (len(keys)==2)   # Only draw one curve for binary classification
+
+        for k,key in enumerate(keys):
+                label = 'AUC={0:.2f}'.format(roc_auc[key])
+                if not binary:
+                    label = self.sample_labels[key].label+' {1}'.format(label)
+                ax.plot(fprs[key],tprs[key],label=label,lw=2)
+
+                # save ROC curve to CSV file (to plot later)
+                csv = [ "{0},{1}".format(fp,tp) for fp,tp in zip(fprs[key],tprs[key]) ]
+                util.to_csv("{0}.csv".format(saveAs),csv)
+                if binary and k==0: break
 
         ax.set_xlim([0.0, 1.0])
         ax.set_ylim([0.0, 1.5])

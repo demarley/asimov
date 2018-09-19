@@ -39,7 +39,7 @@ class Training(Foundation):
         self.epochs     = 10
         self.optimizer  = 'adam'
         self.input_dim  = 1                  # number of features
-        self.output_dim = 1                  # number of output dimensions
+        self.output_dim = 2                  # number of output dimensions
         self.batch_size = 32
         self.activations   = ['elu']         # https://keras.io/activations/
         self.nHiddenLayers = 1
@@ -59,6 +59,10 @@ class Training(Foundation):
         super(Training,self).initialize()
 
         if self.earlystopping:  self.callbacks = [EarlyStopping(**self.earlystopping)]
+        if self.output_dim == 1:
+            self.msg_svc.WARNING("TRAINING : Number of output dimensions = 1.")
+            self.msg_svc.WARNING("         : Setting this value to 2 instead.")
+            self.output_dim = 2
 
 
         ## -- Adjust model architecture parameters (flexibilty in config file)
@@ -146,6 +150,7 @@ class Training(Foundation):
         self.split_dataset()
 
         # - Adjust shape of true values (matrix for multiple outputs)
+        #   Only necessary for multi-classification, not binary
         num_classes  = len(self.classCollection.names())
         self.Y_train = to_categorical(self.Y_train, num_classes=num_classes)
         self.Y_test  = to_categorical(self.Y_test,  num_classes=num_classes)
@@ -180,6 +185,7 @@ class Training(Foundation):
         self.fpr = {}
         self.tpr = {}
         self.roc_auc = {}
+
         for i,c in enumerate(self.classCollection):
             # Make ROC curve from test sample
             fpr,tpr,_ = roc_curve( self.Y_test[:,c.value], test_predictions[:,c.value] )

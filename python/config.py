@@ -47,7 +47,6 @@ class Config(object):
     def setAttributes(self):
         """Set attributes of class for the configurations"""
         setattr(self,'model_name',   self.get('model_name'))
-        setattr(self,'framework',    self.get('framework') )
         setattr(self,'runTraining',  util.str2bool( self.get('runTraining') ))
         setattr(self,'runInference', util.str2bool( self.get('runInference') ))
         setattr(self,'hep_data',     self.get('hep_data'))
@@ -61,11 +60,9 @@ class Config(object):
         setattr(self,'loss',         self.get('loss'))
         setattr(self,'optimizer',    self.get('optimizer'))
         setattr(self,'metrics',      self.get('metrics').split(','))
-        setattr(self,'kfold_splits', int( self.get('kfold_splits') ))
         setattr(self,'init',         self.get('init'))
         setattr(self,'output_dim',   int( self.get('output_dim') ))
         setattr(self,'features',     self.get('features').split(','))
-        setattr(self,'percentile',   int( self.get('percentile') ))
         setattr(self,'activation',   self.get('activation') )
         setattr(self,'nEntries',     int( self.get('nEntries') ))
         setattr(self,'verbose_level',self.get('verbose') )
@@ -75,8 +72,7 @@ class Config(object):
 
     def set_defaults(self):
         """Set default values for configurations"""
-        self.defaults = {'framework':'keras',
-                         'runTraining':False,
+        self.defaults = {'runTraining':False,
                          'runInference': False,
                          'hep_data':None,
                          'treename':"",

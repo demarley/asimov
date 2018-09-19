@@ -129,7 +129,10 @@ class Foundation(object):
         data = file[self.treename]
         self.df = data.pandas.df( self.features+extra_variables )
 
-        self.metadata['metadata'] = file['metadata'] # names of samples, target values, etc.
+        try:
+            self.metadata['metadata'] = file['metadata']  # names of samples, target values, etc.
+        except KeyError:
+            self.metadata['metadata'] = None
 
         return
 
