@@ -31,18 +31,18 @@ def variable_labels():
     variables = {}
 
     variables['mass_MMC']           = Variable(binning=hist1d(50,0,500),     label=r'MMC m$_\text{H}$ [GeV]')
-    variables['mass_vis']           = Variable(binning=hist1d(30,0,300),     label=r'm$_{\tau\ell}$ [GeV]')
-    variables['pt_h']               = Variable(binning=hist1d(40,0,400),     label=r'p$_\text{T}$(H) [GeV]')
+    variables['mass_vis']           = Variable(binning=hist1d(20,0,200),     label=r'm$_{\tau\ell}$ [GeV]')
+    variables['pt_h']               = Variable(binning=hist1d(30,0,300),     label=r'p$_\text{T}$(H) [GeV]')
     variables['deltaeta_jet_jet']   = Variable(binning=hist1d(10,0,5),       label=r'$\Delta\eta$(j$_\text{1}$,j$_\text{2}$)')
-    variables['mass_jet_jet']       = Variable(binning=hist1d(150,0,3000),   label=r'm$_{\text{j}_{\text{1}}\text{,j}_{\text{2}}}$')
-    variables['prodeta_jet_jet']    = Variable(binning=hist1d(80,-20,20),    label=r'$\eta_{\text{j}_\text{1}}\times\eta_{\text{j}_\text{2}}$')
+    variables['mass_jet_jet']       = Variable(binning=hist1d(100,0,2000),   label=r'm$_{\text{j}_{\text{1}}\text{,j}_{\text{2}}}$')
+    variables['prodeta_jet_jet']    = Variable(binning=hist1d(72,-18,18),    label=r'$\eta_{\text{j}_\text{1}}\times\eta_{\text{j}_\text{2}}$')
     variables['deltar_tau_lep']     = Variable(binning=hist1d(10,0,5),       label=r'$\Delta$R($\tau$,$\ell$)')
     variables['pt_tot']             = Variable(binning=hist1d(50,0,500),     label=r'p$_\text{T}$(total)')
     variables['sum_pt']             = Variable(binning=hist1d(100,0,1000),   label=r'S$_\text{T}$')
     variables['pt_ratio_lep_tau']   = Variable(binning=hist1d(20,0,10),      label=r'p$_\text{T}^\ell$/p$_\text{T}^\tau$')
     variables['met_phi_centrality'] = Variable(binning=hist1d(30,-1.5,1.5),  label=r'$\phi^\text{miss}_\text{c}$')
-    variables['lep_eta_centrality'] = Variable(binning=hist1d(10,0,2),       label=r'$\eta^\ell_\text{c}$')
-    variables['mass_transverse_met_lep'] = Variable(binning=hist1d(30,0,300),label=r'm$_\text{T}$')
+    variables['lep_eta_centrality'] = Variable(binning=hist1d(10,0,1.5),     label=r'$\eta^\ell_\text{c}$')
+    variables['mass_transverse_met_lep'] = Variable(binning=hist1d(20,0,200),label=r'm$_\text{T}$')
 
     return variables
 

@@ -150,6 +150,7 @@ def to_csv(filename,data):
     if not filename.endswith(".csv"): filename += ".csv"
     f = open(filename,"w")
     for d in data:
+        if not d.endswith("\n"): d+="\n"
         f.write(d)
     f.close()
 

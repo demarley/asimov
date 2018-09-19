@@ -51,7 +51,6 @@ class Empire(object):
     def __init__(self):
         """Give default values to member variables"""
         self.formatter       = FormatStrFormatter('%g')         # formatting axis labels
-        self.betterColors    = hpt.betterColors()['linecolors'] # colors for plotting
         self.sample_labels   = {}                               # Formatted sample labels
         self.variable_labels = {}                               # Formatted variable labels
 
@@ -77,7 +76,7 @@ class Empire(object):
         for i,nc in enumerate(nn_classes):
             tmp = nc
             tmp.label = self.sample_labels[nc.name].label
-            tmp.color = self.betterColors[i]
+            tmp.color = self.sample_labels[nc.name].color
             self.classCollection.append(tmp)
 
         # Create unique combinations of the targets in pairs 
@@ -387,123 +386,152 @@ class Empire(object):
 
 
 
-    def prediction(self,train_data={},test_data={}):
+    def prediction(self,train_data={},test_data={},binary=False):
         """
         Plot the training and testing predictions. 
         To save on memory, pass this histograms directly
         
+        Binary classification:
+          Make a plot for the target value
         Multi-classification:
           Make a plot for each target value 
-          (e.g., QCD prediction to be QCD; Top prediction to be QCD, etc)
-          Need two-dimensional arrays/dictionaries to achieve this
+          e.g., QCD prediction to be QCD; Top prediction to be QCD, etc
+            Need two-dimensional arrays/dictionaries to achieve this
         """
         self.msg_svc.DEBUG("DL : Plotting DNN prediction. ")
 
-        for c in self.classCollection:
-            target_label = self.sample_labels[c.name].label
-            hist = Histogram1D()
-
-            hist.normed  = True  # compare shape differences (likely don't have the same event yield)
-            hist.format  = self.image_format
-            hist.saveAs  = "{0}/hist_DNN_prediction_{1}".format(self.output_dir,c.name)
-            hist.stacked = False
-            hist.x_label = "Prediction: {0}".format(target_label)
-            hist.y_label = "A.U."
-            hist.CMSlabel = 'outer'
-            hist.CMSlabelStatus   = self.CMSlabelStatus
-            hist.legend['fontsize'] = 10
-
-            hist.ratio.value  = "ratio"
-            hist.ratio.ylabel = "Train/Test"
-
-            hist.initialize()
-
-            json_data = {}
-            for t,cc in enumerate(self.classCollection):
-
-                target_value = cc.value  # arrays for multiclassification 
-
-                train_t = train_data[c.name][cc.name]
-                train_weights = train_t[0]
-                train_bins    = train_t[1]
-                train_dummy   = hpt.midpoints(train_bins)
-                train_kwargs  = {"draw_type":"step","edgecolor":cc.color,
-                                 "label":cc.label+" Train"}
-
-                test_t  = test_data[c.name][cc.name]
-                test_weights = test_t[0]
-                test_bins    = test_t[1]
-                test_dummy   = hpt.midpoints(test_bins)
-                test_kwargs  = {"draw_type":"stepfilled","edgecolor":cc.color,
-                                "color":cc.color,"linewidth":0,"alpha":0.5,
-                                "label":cc.label+" Test"}
-
-                hist.binning = train_bins  # should be the same for train/test
-
-                hist.Add(train_dummy,weights=train_weights,\
-                         name=cc.name+'_train',**train_kwargs) # Training
-                hist.Add(test_dummy,weights=test_weights,\
-                         name=cc.name+'_test',**test_kwargs)    # Testing
-
-                hist.ratio.Add(numerator=cc.name+'_train',denominator=cc.name+'_test')
-
-                ## Save data to JSON file
-                json_data[cc.name+"_train"] = {"binning":train_t[1].tolist(),
-                                               "content":train_t[0].tolist()}
-                json_data[cc.name+"_test"]  = {"binning":test_t[1].tolist(),
-                                               "content":test_t[0].tolist()}
-
-            p = hist.execute()
-            hist.savefig()
-
-            # calculate separation between predictions
-            separations = OrderedDict()
-            for t,target in enumerate(self.class_pairs):
-                data_a = json_data[ target[0]+"_test" ]["content"]
-                data_b = json_data[ target[1]+"_test" ]["content"]
-                separation = util.getSeparation(np.asarray(data_a),np.asarray(data_b))
-                json_data[ '-'.join(target)+"_test" ] = {"separation":separation}
-                separations['-'.join(target)] = separation
-
-            # save results to JSON file (just histogram values & bins) to re-make plots
-            with open("{0}.json".format(hist.saveAs), 'w') as outfile:
-                json.dump(json_data, outfile)
-
-
-            ## Plot separation between predictions for given target
-            saveAs = "{0}/hist_DNN_prediction_sep_{1}".format(self.output_dir,c.name)
-            sorted_sep = sorted(separations, key=separations.__getitem__) # sort data by separation value
-            ypos = np.arange(len(sorted_sep))
-
-            # make the bar plot
-            fig,ax = plt.subplots()
-            ax.barh(ypos, [separations[i] for i in sorted_sep], align='center')
-            ax.set_yticks(ypos)
-            yticklabels = []
-            for i in sorted_sep:
-                split  = i.split("-")
-                first  = self.sample_labels[ split[0] ].label
-                second = self.sample_labels[ split[1] ].label
-                yticklabels.append( '{0}-{1}'.format(first,second) )
-            ax.set_yticklabels(yticklabels,fontsize=12)
-            ax.set_xticklabels([self.formatter(i) for i in ax.get_xticks()])
-            ax.set_xlabel("Separation",ha='right',va='top',position=(1,0))
-
-            # CMS/COM Energy Label + Signal name
-            self.stamp_cms(ax)
-            self.stamp_energy(ax)
-            ax.text(0.95,0.05,"DNN Prediction: {0}".format(target_label),fontsize=16,
-                    ha='right',va='bottom',transform=ax.transAxes)
-
-            plt.savefig("{0}.{1}".format(saveAs,self.image_format))
-            plt.close()
+        if binary:
+            self._prediction(train_data,test_data)
+        else:
+            for c in self.classCollection:
+                self._prediction(train_data,test_data,c)
 
         return
 
 
+    def _prediction(self,train_data={},test_data={},c=None):
+        """Make the plot for DNN predictions"""
+        target_label = ''
+        target_name  = ''
+        if c is not None:
+            target_label = ": {0}".format(self.sample_labels[c.name].label)
+            target_name  = "_{0}".format(c.name)
+
+        hist = Histogram1D()
+
+        hist.normed  = True  # compare shape differences (likely don't have the same event yield)
+        hist.format  = self.image_format
+        hist.saveAs  = "{0}/hist_DNN_prediction{1}".format(self.output_dir,target_name)
+        hist.stacked = False
+        hist.x_label = "Prediction{0}".format(target_label)
+        hist.y_label = "A.U."
+        hist.CMSlabel = 'outer'
+        hist.CMSlabelStatus   = self.CMSlabelStatus
+        hist.legend['fontsize'] = 10
+
+        hist.ratio.value  = "ratio"
+        hist.ratio.ylabel = "Train/Test"
+
+        hist.initialize()
+
+        json_data = {}
+        for t,cc in enumerate(self.classCollection):
+
+            target_value = cc.value  # arrays for multiclassification 
+
+            # Access histogram data (for binary or multi-classification)
+            try:
+                train_t = train_data[target_name][cc.name]
+                test_t  = test_data[target_name][cc.name]
+            except:
+                train_t = train_data[cc.name]
+                test_t  = test_data[cc.name]
+
+            train_weights = train_t[0]
+            train_bins    = train_t[1]
+            train_dummy   = hpt.midpoints(train_bins)
+            train_kwargs  = {"draw_type":"step","edgecolor":cc.color,
+                             "label":cc.label+" Train"}
+
+            test_weights = test_t[0]
+            test_bins    = test_t[1]
+            test_dummy   = hpt.midpoints(test_bins)
+            test_kwargs  = {"draw_type":"stepfilled","edgecolor":cc.color,
+                            "color":cc.color,"linewidth":0,"alpha":0.5,
+                            "label":cc.label+" Test"}
+
+            hist.binning = train_bins  # should be the same for train/test
+
+            hist.Add(train_dummy,weights=train_weights,\
+                     name=cc.name+'_train',**train_kwargs) # Training
+            hist.Add(test_dummy,weights=test_weights,\
+                     name=cc.name+'_test',**test_kwargs)    # Testing
+
+            hist.ratio.Add(numerator=cc.name+'_train',denominator=cc.name+'_test')
+
+            ## Save data to JSON file
+            json_data[cc.name+"_train"] = {"binning":train_t[1].tolist(),
+                                           "content":train_t[0].tolist()}
+            json_data[cc.name+"_test"]  = {"binning":test_t[1].tolist(),
+                                           "content":test_t[0].tolist()}
+
+        p = hist.execute()
+        hist.savefig()
+
+        # calculate separation between predictions
+        separations = OrderedDict()
+        for t,target in enumerate(self.class_pairs):
+            data_a = json_data[ target[0]+"_test" ]["content"]
+            data_b = json_data[ target[1]+"_test" ]["content"]
+            separation = util.getSeparation(np.asarray(data_a),np.asarray(data_b))
+            json_data[ '-'.join(target)+"_test" ] = {"separation":separation}
+            separations['-'.join(target)] = separation
+
+        # save results to JSON file (just histogram values & bins) to re-make plots
+        with open("{0}.json".format(hist.saveAs), 'w') as outfile:
+            json.dump(json_data, outfile)
+
+
+        ## Plot separation between predictions for given target
+        saveAs = "{0}/hist_DNN_prediction_sep_{1}".format(self.output_dir,target_name)
+        sorted_sep = sorted(separations, key=separations.__getitem__) # sort data by separation value
+        ypos = np.arange(len(sorted_sep))
+
+        # make the bar plot
+        fig,ax = plt.subplots()
+        ax.barh(ypos, [separations[i] for i in sorted_sep], align='center')
+        ax.set_yticks(ypos)
+        yticklabels = []
+        for i in sorted_sep:
+            split  = i.split("-")
+            first  = self.sample_labels[ split[0] ].label
+            second = self.sample_labels[ split[1] ].label
+            yticklabels.append( '{0}-{1}'.format(first,second) )
+        ax.set_yticklabels(yticklabels,fontsize=12)
+        ax.set_xticklabels([self.formatter(i) for i in ax.get_xticks()])
+        ax.set_xlabel("Separation",ha='right',va='top',position=(1,0))
+
+        # CMS/COM Energy Label + Signal name
+        self.stamp_cms(ax)
+        self.stamp_energy(ax)
+        ax.text(0.95,0.05,"DNN Prediction".format(target_label),fontsize=16,
+                ha='right',va='bottom',transform=ax.transAxes)
+
+        plt.savefig("{0}.{1}".format(saveAs,self.image_format))
+        plt.close()
+
 
     def ROC(self,fprs={},tprs={},roc_auc={}):
-        """Plot the ROC curve & save to text file"""
+        """
+        Plot the ROC curve & save to text file
+        
+        @param fprs    False Positive Rates. Dictionary with each key representing
+                       a different class ('signal','background1','background2', etc.).
+                       Only one key 'binary' for binary classification (defined in
+                       training.py).
+        @param tprs    True Positive Rates.  Same structure as fprs.
+        @param roc_auc Area under the ROC curves. Dictionary with same keys as fprs/tprs.
+        """
         self.msg_svc.DEBUG("DL : Plotting ROC curve.")
 
         saveAs = "{0}/roc_curve".format(self.output_dir)
@@ -517,18 +545,17 @@ class Empire(object):
 
         # Plot ROC curve
         keys   = fprs.keys()
-        binary = (len(keys)==2)   # Only draw one curve for binary classification
+        binary = (len(keys)==1)   # Only draw one curve for binary classification
 
         for k,key in enumerate(keys):
-                label = 'AUC={0:.2f}'.format(roc_auc[key])
-                if not binary:
-                    label = self.sample_labels[key].label+' {1}'.format(label)
-                ax.plot(fprs[key],tprs[key],label=label,lw=2)
+            label = 'AUC={0:.2f}'.format(roc_auc[key])
+            if not binary:
+                label = self.sample_labels[key].label+' {1}'.format(label)
+            ax.plot(fprs[key],tprs[key],label=label,lw=2)
 
-                # save ROC curve to CSV file (to plot later)
-                csv = [ "{0},{1}".format(fp,tp) for fp,tp in zip(fprs[key],tprs[key]) ]
-                util.to_csv("{0}.csv".format(saveAs),csv)
-                if binary and k==0: break
+            # save ROC curve to CSV file (to plot later)
+            csv = [ "{0},{1}".format(fp,tp) for fp,tp in zip(fprs[key],tprs[key]) ]
+            util.to_csv("{0}_{1}.csv".format(saveAs,key),csv)
 
         ax.set_xlim([0.0, 1.0])
         ax.set_ylim([0.0, 1.5])

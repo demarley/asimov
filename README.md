@@ -11,10 +11,11 @@ Hopefully this framework is useful for getting started and requires little modif
 
 ## Getting Started
 
-Clone the repository.
+Clone the repository and the hepPlotter repository (Asimov uses hepPlotter to make plots):
 
 ```
 git clone https://github.com/demarley/asimov.git
+git clone https://github.com/demarley/hepPlotter.git
 ```
 
 ## Software Versions

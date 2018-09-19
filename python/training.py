@@ -58,11 +58,9 @@ class Training(Foundation):
         """Initialize a few parameters after they've been set by user"""
         super(Training,self).initialize()
 
-        if self.earlystopping:  self.callbacks = [EarlyStopping(**self.earlystopping)]
-        if self.output_dim == 1:
-            self.msg_svc.WARNING("TRAINING : Number of output dimensions = 1.")
-            self.msg_svc.WARNING("         : Setting this value to 2 instead.")
-            self.output_dim = 2
+        self.num_classes = len(self.classCollection.names())
+        if self.earlystopping:
+            self.callbacks = [EarlyStopping(**self.earlystopping)]
 
 
         ## -- Adjust model architecture parameters (flexibilty in config file)
@@ -151,9 +149,9 @@ class Training(Foundation):
 
         # - Adjust shape of true values (matrix for multiple outputs)
         #   Only necessary for multi-classification, not binary
-        num_classes  = len(self.classCollection.names())
-        self.Y_train = to_categorical(self.Y_train, num_classes=num_classes)
-        self.Y_test  = to_categorical(self.Y_test,  num_classes=num_classes)
+        if self.num_classes>2:
+            self.Y_train = to_categorical(self.Y_train, num_classes=self.num_classes)
+            self.Y_test  = to_categorical(self.Y_test,  num_classes=self.num_classes)
 
         ## Fit the model to training data & save the history (with validation!)
         self.history = self.model.fit(self.X_train,self.Y_train,\
@@ -177,37 +175,59 @@ class Training(Foundation):
         #    Need predictions for each class for each sample 
         #    (e.g., for top sample, what is the qcd prediction? For qcd sample, what is the qcd prediction? etc.)
         target_names = self.classCollection.names()
-        h_tests  = dict( (n,{}) for n in target_names )
-        h_trains = dict( (n,{}) for n in target_names )
+        h_tests  = {}
+        h_trains = {}
         binning  = [0.1*i for i in range(11)]
+        binary   = self.num_classes<=2
 
         # Predictions and ROC curves for each sample
         self.fpr = {}
         self.tpr = {}
         self.roc_auc = {}
 
-        for i,c in enumerate(self.classCollection):
+        if binary:
+            # binary classification
             # Make ROC curve from test sample
-            fpr,tpr,_ = roc_curve( self.Y_test[:,c.value], test_predictions[:,c.value] )
-            self.fpr[c.name] = fpr
-            self.tpr[c.name] = tpr
-            self.roc_auc[c.name] = auc(fpr,tpr)
+            fpr,tpr,_ = roc_curve( self.Y_test, test_predictions )
+            self.fpr['binary'] = fpr
+            self.tpr['binary'] = tpr
+            self.roc_auc['binary'] = auc(fpr,tpr)
 
             # fill histograms of predictions for different classes for this sample
-            category = np.array([0. for _ in range(len(target_names))])
-            category[c.value] = 1.
+            for i,c in enumerate(self.classCollection):
+                test_preds  = test_predictions[np.where(self.Y_test==c.value)]
+                train_preds = train_predictions[np.where(self.Y_train==c.value)]
 
-            # array for each class prediction in single sample
-            test_preds  = test_predictions[np.where(np.prod(self.Y_test==category, axis=-1))]
-            train_preds = train_predictions[np.where(np.prod(self.Y_train==category, axis=-1))]
+                h_tests[c.name]  = np.histogram(test_preds, bins=binning)
+                h_trains[c.name] = np.histogram(train_preds,bins=binning)
+        else:
+            # multi-classification
+            h_tests  = dict( (n,{}) for n in target_names )
+            h_trains = dict( (n,{}) for n in target_names )
 
-            for m in self.classCollection:
-                h_tests[c.name][m.name]  = np.histogram(test_preds[:,m.value], bins=binning)
-                h_trains[c.name][m.name] = np.histogram(train_preds[:,m.value],bins=binning)
+            for i,c in enumerate(self.classCollection):
+                # Make ROC curve from test sample
+                fpr,tpr,_ = roc_curve( self.Y_test[:,c.value], test_predictions[:,c.value] )
+                self.fpr[c.name] = fpr
+                self.tpr[c.name] = tpr
+                self.roc_auc[c.name] = auc(fpr,tpr)
+
+                # fill histograms of predictions for different classes for this sample
+                category = np.array([0. for _ in range(len(target_names))])
+                category[c.value] = 1.
+
+                # array for each class prediction in single sample
+                test_preds  = test_predictions[np.where(np.prod(self.Y_test==category, axis=-1))]
+                train_preds = train_predictions[np.where(np.prod(self.Y_train==category, axis=-1))]
+
+                for m in self.classCollection:
+                    h_tests[c.name][m.name]  = np.histogram(test_preds[:,m.value], bins=binning)
+                    h_trains[c.name][m.name] = np.histogram(train_preds[:,m.value],bins=binning)
+
 
         # Plot the predictions to compare test/train
         self.msg_svc.INFO("DL : Plot the train/test predictions")
-        self.plotter.prediction(h_trains,h_tests)   # compare DNN prediction for different targets
+        self.plotter.prediction(h_trains,h_tests,binary)   # compare DNN prediction for different targets
 
         self.msg_svc.DEBUG("TRAINING :   Finished fitting model ")
 
