@@ -18,6 +18,55 @@ git clone https://github.com/demarley/asimov.git
 git clone https://github.com/demarley/hepPlotter.git
 ```
 
+Please see the `examples/` directory for an example on using this framework with data from the Higgs Boson Machine Learning Challenge.
+
+## Overview & Workflow
+
+This (simple) framework serves as an interface between HEP data and machine learning libraries (keras).
+The uproot package allows us to open ROOT data files in a python environment and port the data directly to a pandas dataframe.
+The dataframe can then be passed to keras as needed to do the training.
+Using hepPlotter, we can make plots of the features, correlations, etc. to visualize the ML performance.
+
+The input root file is assumed to be flat and each 'event' in the TTree contains branches necessary for training 
+(the branches in the TTree need to match the names of the features provided in the configuration file).
+If you're designing an algorithm that discriminates objects, e.g., jets, then each 'event' in the TTree must represent each jet, rather than the actual physics event.   
+Please inspect `example.root` in the `examples/` directory for more information.  
+_NB: This is an area for future development, but the current simplicity of this setup prevents that.  Furthermore, the author uses their existing workflow (a C++ environment) to generate flat ntuples._
+
+Files | Description
+----- | -----------
+`foundation.py` (`training.py` and `inference.py` inherit from this) | Base class
+`empire.py` | Plotting class
+`config.py` | Configuration class (reads text file and sets NN framework)
+`util.py`   | Misc. utility functions
+
+
+### Configuration
+
+A single text file dictates the NN architecture, what data to process, where store outputs, and what features to use, among other things.
+An example is provided here: `examples/example_config.txt`.
+In this file, the list of features are comma-separated and they match the branches in `example.root` that we want to use for the training (noted above).
+The class `python/config.py` reads the text file and stores the relevant data for use by the various NN classes.
+
+### Selection
+To apply further selection on dataframe, you can create a list of strings that will be parsed
+and then used to select events from the dataframe.
+
+```python
+# slices = ['BRANCH <OP> VALUE',...]
+# where : 'BRANCH' is the branch name in the root file
+#       : <OP> is the mathematical operator, e.g., '>' or '<='
+#       : 'VALUE' is the value the branch is being compared to
+# e.g., for the examples directory:
+slices = ['mass_MMC > 0']   # this would ensure you don't train on events with mass_MMC=-999.
+dnn.preprocess_data(slices)
+```
+
+### Output
+
+The model and figures are saved for further inspection and use in a c++ production environment.
+The [LWTNN](https://github.com/lwtnn/lwtnn) framework is the default output option, but it is possible to save the model in other forms.
+
 ## Software Versions
 
 This software has been developed for a custom computing environment.
