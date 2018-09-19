@@ -23,6 +23,7 @@ NB PyTorch currently unsupported
 """
 import json
 import datetime
+import operator
 from collections import Counter
 
 import util
@@ -56,6 +57,8 @@ class Foundation(object):
         self.features = []          # List of features used in the analysis
         self.classes  = {}          # classes for neural network {"name":value}
         self.classCollection = None # storing information about the different classes
+        self.sample_labels = {}
+        self.variable_labels = {}
 
         ## NN architecture & parameters -- set by config file
         self.treename   = 'features'    # Name of TTree to access in ROOT file (via uproot)
@@ -66,21 +69,21 @@ class Foundation(object):
         self.output_dir = 'data/dnn/'   # directory for storing NN data
         self.runDiagnostics = False     # Make plots pre/post training
         self.msg_svc = None
-        self.verbose = False
+        self.verbose = True
         self.equal_statistics = True    # Equal statistics for each class in the df
 
 
 
     def initialize(self):
         """Initialize a few parameters after they've been set by user"""
-        self.verbose = not self.msg_svc.compare("WARNING")
+        self.verbose = self.msg_svc.compare("WARNING")  # if verbose level < "WARNING", verbose output!
 
         # Use input filename to generate model name
         if not self.model_name:
             self.model_name = self.hep_data.split('/')[-1].split('.')[0]+'_'+self.date
 
         # Store NN classes in custom object
-        self.classCollection = NNClassCollection()
+        self.classCollection = util.NNClassCollection()
         for n,v in self.classes.iteritems():
             nn_class = util.NNClass(n)
             nn_class.value = v
@@ -88,11 +91,13 @@ class Foundation(object):
 
 
         ## -- Plotting framework
-        self.plotter = DeepLearningPlotter()  # class for plotting relevant NN information
+        self.plotter = Empire()  # class for plotting relevant NN information
         self.plotter.output_dir   = self.output_dir
         self.plotter.image_format = 'pdf'
         self.plotter.features     = self.features
         self.plotter.msg_svc      = self.msg_svc
+        self.plotter.sample_labels   = self.sample_labels
+        self.plotter.variable_labels = self.variable_labels
         self.plotter.initialize(self.classCollection)
 
         return
@@ -101,10 +106,10 @@ class Foundation(object):
 
     def predict(self,data=None):
         """Return the prediction from a test sample"""
-        self.msg_svc.DEBUG("DL : Get the DNN prediction")
+        self.msg_svc.DEBUG("FOUNDATION : Get the DNN prediction")
         if data is None:
-            self.msg_svc.ERROR("DL : predict() given NoneType data. Returning -999.")
-            self.msg_svc.ERROR("DL : Please check your configuration!")
+            self.msg_svc.ERROR("FOUNDATION : predict() given NoneType data. Returning -999.")
+            self.msg_svc.ERROR("FOUNDATION : Please check your configuration!")
             return -999.
         return self.model.predict( data )
 
@@ -118,7 +123,7 @@ class Foundation(object):
         @param extra_variables   If there are extra variables to plot/analyze, 
                                  that aren't features of the NN, include them here
         """
-        self.msg_svc.INFO("DL : Load HEP data")
+        self.msg_svc.INFO("FOUNDATION : Load HEP data")
 
         file = uproot.open(self.hep_data)
         data = file[self.treename]
@@ -129,8 +134,14 @@ class Foundation(object):
         return
 
 
-    def preprocess_data(self):
-        """Manipulate dataframe and keep only the necessary data"""
+    def preprocess_data(self,slices=[]):
+        """Manipulate dataframe and keep only the necessary data
+           @param slices    list of strings that contain arguments (separated by spaces) for slicing the dataframe
+                            e.g., ['AK4_DeepCSVb >= 0','AK4_DeepCSVbb >= 0']
+                            these selections are applied to the dataframe
+        """
+        self.msg_svc.DEBUG("FOUNDATION : Preprocess data")
+
         class_dfs = []
         min_size  = self.df.shape[0]
         for k in self.classCollection:
@@ -141,18 +152,31 @@ class Foundation(object):
 
         # Make the dataset sizes equal for the different classes
         if self.equal_statistics:
-			for td,cdf in enumerate(class_dfs):
-				# shuffle entries and select first events up to 'min_size'
-				if cdf.shape[0]>min_size:
-					class_dfs[td] = class_dfs[td].sample(frac=1)[0:min_size]
+            for td,cdf in enumerate(class_dfs):
+                # shuffle entries and select first events up to 'min_size'
+                if cdf.shape[0]>min_size:
+                    class_dfs[td] = class_dfs[td].sample(frac=1)[0:min_size]
 
         self.df = pd.concat( class_dfs ).sample(frac=1) # re-combine & shuffle entries
+
+        opts = {">":operator.gt,">=":operator.ge,
+                "<":operator.lt,"<=":operator.le,
+                "==":operator.eq,"!=":operator.ne}
+        for sl in slices:
+            arg,opt,val = sl.split(" ")
+            opt   = opts[opt]
+            dtype = self.df[arg].dtype.name
+            val   = getattr(np,dtype)(val)
+
+            self.df = self.df[ opt(self.df[arg],val) ]
 
         return
 
 
     def save_model(self):
         """Save the model for use later"""
+        self.msg_svc.DEBUG("FOUNDATION : Save model")
+
         output = self.output_dir+'/'+self.model_name
 
         if self.lwtnn:
@@ -182,7 +206,6 @@ class Foundation(object):
             keys = featureKeys.keys()
             featureKey = max([int(i) for i in keys])+1 if keys else 0
             featureKeys[str(featureKey)] = self.features
-            vb.INFO("RUN :  New features for NN ")
             with open(featureKeysFile,'w') as outfile:
                 json.dump(featureKeys,outfile)
 
@@ -207,6 +230,8 @@ class Foundation(object):
 
     def load_model(self):
         """Load existing model to make plots or predictions"""
+        self.msg_svc.DEBUG("FOUNDATION : Load model")
+
         self.model = None
 
         if self.lwtnn:
@@ -221,30 +246,32 @@ class Foundation(object):
 
 
 
-    def diagnostics(self,pre=False,post=False):
+    def diagnostics(self,pre=False,post=False,**kwargs):
         """Diagnostic tests of the NN"""
-        self.msg_svc.INFO("DL : Diagnostics")
+        self.msg_svc.DEBUG("FOUNDATION : Diagnostics")
 
         # Plots to make pre-training
         if pre:
-            self.msg_svc.INFO("DL : -- pre-training :: features")
-            self.plotter.features(self.df)           # compare features
+            # Use **kwargs to limit feature plots to 1D
+            ndims = kwargs.get("ndims",-1)
+            self.msg_svc.INFO("FOUNDATION : -- pre-training :: features")
+            self.plotter.feature(self.df,ndims=ndims) # compare features
 
-            self.msg_svc.INFO("DL : -- pre-training :: correlations")
+            self.msg_svc.INFO("FOUNDATION : -- pre-training :: correlations")
             corrmats = {}
             for c in self.classCollection:
                 t_ = self.df[self.df.target==c.value].drop('target',axis=1)
                 corrmats[c.name] = t_.corr()
-            self.plotter.correlation(corrmats)       # correlations between features
+            self.plotter.correlation(corrmats)        # correlations between features
 
-            self.msg_svc.INFO("DL : -- pre-training :: separations")
-            self.plotter.separation()                # separations between classes
+            self.msg_svc.INFO("FOUNDATION : -- pre-training :: separations")
+            self.plotter.separation()                 # separations between classes
 
         # Plots to make post-training/testing
         if post:
-            self.msg_svc.INFO("DL : -- post-training :: ROC")
+            self.msg_svc.INFO("FOUNDATION : -- post-training :: ROC")
             self.plotter.ROC(self.fpr,self.tpr,self.roc_auc)   # Signal vs background eff
-            self.msg_svc.INFO("DL : -- post-training :: History")
+            self.msg_svc.INFO("FOUNDATION : -- post-training :: History")
             self.plotter.history(self.history)                 # loss vs epoch
 
         return

@@ -88,16 +88,20 @@ class Training(Foundation):
 
 
 
-    def training(self):
-        """Train NN model"""
-        if self.runDiagnostics: self.diagnostics(pre=True)
+    def train(self,**kwargs):
+        """
+        Train NN model
+
+        @param kwargs   Pass extra arguments to limit plots (few supported options atm)
+        """
+        self.diagnostics(pre=self.runDiagnostics, **kwargs)
 
         self.build_model()
         self.train_model()
         self.save()
         self.evaluate_model()
 
-        if self.runDiagnostics: self.diagnostics(post=True)
+        self.diagnostics(post=self.runDiagnostics)
 
         return
 
@@ -105,7 +109,7 @@ class Training(Foundation):
     ## Specific functions to perform training/inference tasks
     def build_model(self):
         """Construct the NN model -- only Keras support for now"""
-        self.msg_svc.INFO("DL : Build the neural network ")
+        self.msg_svc.DEBUG("TRAINING : Build the neural network ")
 
         ## Declare the model
         self.model = Sequential()
@@ -138,11 +142,11 @@ class Training(Foundation):
 
     def train_model(self):
         """Setup for training the model using k-fold cross-validation"""
-        self.msg_svc.INFO("DL : Train the model!")
+        self.msg_svc.DEBUG("TRAINING : Train the model!")
         self.split_dataset()
 
         # - Adjust shape of true values (matrix for multiple outputs)
-        num_classes  = len(self.classCollection.names)
+        num_classes  = len(self.classCollection.names())
         self.Y_train = to_categorical(self.Y_train, num_classes=num_classes)
         self.Y_test  = to_categorical(self.Y_test,  num_classes=num_classes)
 
@@ -159,7 +163,7 @@ class Training(Foundation):
 
     def evaluate_model(self):
         """Evaluate the model."""
-        self.msg_svc.INFO("DL : Evaluate the model ")
+        self.msg_svc.DEBUG("TRAINING : Evaluate the model ")
 
         train_predictions = self.predict(self.X_train) # predictions from training sample
         test_predictions  = self.predict(self.X_test)  # predictions from testing sample
@@ -167,7 +171,7 @@ class Training(Foundation):
         # -- store test/train prediction
         #    Need predictions for each class for each sample 
         #    (e.g., for top sample, what is the qcd prediction? For qcd sample, what is the qcd prediction? etc.)
-        target_names = self.classCollection.names
+        target_names = self.classCollection.names()
         h_tests  = dict( (n,{}) for n in target_names )
         h_trains = dict( (n,{}) for n in target_names )
         binning  = [0.1*i for i in range(11)]
@@ -178,18 +182,18 @@ class Training(Foundation):
         self.roc_auc = {}
         for i,c in enumerate(self.classCollection):
             # Make ROC curve from test sample
-            fpr,tpr,_ = roc_curve( Y_test[:,c.value], test_predictions[:,c.value] )
+            fpr,tpr,_ = roc_curve( self.Y_test[:,c.value], test_predictions[:,c.value] )
             self.fpr[c.name] = fpr
             self.tpr[c.name] = tpr
             self.roc_auc[c.name] = auc(fpr,tpr)
 
             # fill histograms of predictions for different classes for this sample
-            category = np.array([0. for _ in range(num_classes)])
-            category[v] = 1.
+            category = np.array([0. for _ in range(len(target_names))])
+            category[c.value] = 1.
 
             # array for each class prediction in single sample
-            test_preds  = test_predictions[np.where(np.prod(Y_test==category, axis=-1))]
-            train_preds = train_predictions[np.where(np.prod(Y_train==category, axis=-1))]
+            test_preds  = test_predictions[np.where(np.prod(self.Y_test==category, axis=-1))]
+            train_preds = train_predictions[np.where(np.prod(self.Y_train==category, axis=-1))]
 
             for m in self.classCollection:
                 h_tests[c.name][m.name]  = np.histogram(test_preds[:,m.value], bins=binning)
@@ -199,7 +203,7 @@ class Training(Foundation):
         self.msg_svc.INFO("DL : Plot the train/test predictions")
         self.plotter.prediction(h_trains,h_tests)   # compare DNN prediction for different targets
 
-        self.msg_svc.INFO("DL :   Finished fitting model ")
+        self.msg_svc.DEBUG("TRAINING :   Finished fitting model ")
 
         return
 
@@ -227,7 +231,7 @@ class Training(Foundation):
     "keras_version": "%(version)s",
     "miscellaneous": {}
   }
-""" % {'version':keras_version,'name':self.dnn_name}
+""" % {'version':keras.__version__,'name':self.dnn_name}
 
         varsFileName = self.output_dir+'/variables.json'
         varsFile     = open(varsFileName,'w')

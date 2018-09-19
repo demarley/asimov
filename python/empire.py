@@ -30,7 +30,6 @@ try:
 except KeyError:
     cwd = os.getcwd()
     hpd = cwd.replace("asimov","hepPlotter/python/")
-    print cwd,hpd
     if hpd not in sys.path:
         sys.path.insert(0,hpd)
     from histogram1D import Histogram1D
@@ -65,38 +64,39 @@ class Empire(object):
         self.CMSlabelStatus  = "Simulation Internal"     # plot label 
 
 
-    def initialize(self,nn_classes,get_separations=True):
+    def initialize(self,nn_classes):
         """
         Set parameters of class to make plots
 
         @param nn_classes       Collection of NNClass() objects
-        @param get_separations  Boolean to calculate and plot separations
         """
         self.featurePairs = list(itertools.combinations(self.features,2))
 
         self.classCollection.clear()
         for i,nc in enumerate(nn_classes):
             tmp = nc
-            tmp.label = self.sample_labels[n].label
+            tmp.label = self.sample_labels[nc.name].label
             tmp.color = self.betterColors[i]
             self.classCollection.append(tmp)
 
         # Create unique combinations of the targets in pairs 
         # (to calculate separation between classes in two dimensions)
-        self.class_pairs = list(itertools.combinations(self.classCollection.names,2))
+        self.class_pairs = list(itertools.combinations(self.classCollection.names(),2))
 
         return
 
 
-    def features(self,dataframe):
+    def feature(self,dataframe,ndims=-1):
         """
         Plot the features
           For classification, compare different targets
           For regression, just plot the features
 
         @param dataframe    Pandas dataframe with data to be plotted
+        @param ndims        Number of dimensions to plot (-1=ALL; 1=1D features only) 
+                            [always plot 1D features, for now]
         """
-        self.msg_svc.INFO("DL : Plotting features.")
+        self.msg_svc.DEBUG("DL : Plotting features.")
 
         self.separations = dict( (k,{}) for k in self.features)
         for featurepairs in self.featurePairs:
@@ -117,9 +117,11 @@ class Empire(object):
             hist.saveAs  = self.output_dir+"/hist_"+feature
             hist.CMSlabel = 'outer'
             hist.CMSlabelStatus = self.CMSlabelStatus
+            hist.legend['fontsize'] = 10
 
             hist.ratio.value  = "significance"
-            hist.ratio.ylabel = r"S/$\sqrt{\text{B}}$"
+            hist.ratio.ylabel = r"S(A/$\sqrt{\text{B}}$"
+            hist.ratio.update_legend = True
 
             hist.initialize()
 
@@ -129,23 +131,35 @@ class Empire(object):
                 kwargs = {"draw_type":"step","edgecolor":c.color,"label":c.label}
 
                 # Put into histogram before passing to hepPlotter to reduce memory
-                h,bx = np.histogram(df[df.target==c.value][feature],bins=vl.binning)
+                h,bx = np.histogram(dataframe[dataframe.target==c.value][feature],bins=vl.binning)
                 bin_centers = 0.5*(bx[:-1]+bx[1:])
-                hist.Add(bin_centers,weights=h,name=target.name,**kwargs)
-                histValues[c.name] = h
+                hist.Add(bin_centers,weights=h,name=c.name,**kwargs)
+                histValues[c.name] = h.copy()
 
             # Add ratio plot comparing the targets (in pairs) for this feature
             # e.g., feature (QCD) vs feature (QB), etc.
+            numerators = {}
+            markers = ['o','v','^']         # for ratios with the same numerator, change the marker style
             for pair in self.class_pairs:
-                hist.ratio.Add(numerator=pair[0],denominator=pair[1],draw_type='errorbar')
+                try:
+                    idx = numerators[pair[0]]
+                    numerators[pair[0]]+=1
+                except KeyError:
+                    idx = 0
+                    numerators[pair[0]]=1
+                num = self.classCollection.get(pair[0])
+                den = self.classCollection.get(pair[1])
+                hist.ratio.Add(numerator=pair[0],denominator=pair[1],draw_type='errorbar',
+                               mec='k',mfc=num.color,ecolor=num.color,fmt=markers[idx],
+                               label=r"S({0},{1})".format(num.label,den.label))
 
             p = hist.execute()
             hist.savefig()
 
             ## Calculate 1D separations for this feature between classes
             for pair in self.class_pairs:
-                data_a = histValues[pair[0]]
-                data_b = histValues[pair[1]]
+                data_a = histValues.get(pair[0])
+                data_b = histValues.get(pair[1])
                 separation = util.getSeparation(data_a,data_b)
                 self.separations[feature]['-'.join(pair)] = separation
 
@@ -154,14 +168,23 @@ class Empire(object):
             xfeature = featurepairs[0]
             yfeature = featurepairs[1]
 
+            xvar = self.variable_labels[xfeature]
+            yvar = self.variable_labels[yfeature]
+            xbins = xvar.binning
+            ybins = yvar.binning
+
             histValues = {}
             for c in self.classCollection:
-                hist = Histogram2D()
+                # save memory by making the histogram here and passing the result to hepPlotter
+                xdf = dataframe[dataframe.target==c.value][xfeature]
+                ydf = dataframe[dataframe.target==c.value][yfeature]
+                h,binsx,binsy = np.histogram2d(xdf,ydf,bins=[xbins,ybins])
+                histValues[c.name] = h
+                # h[0] yields the y-axis array for the first bin in x
 
-                xvar = self.variable_labels[xfeature]
-                yvar = self.variable_labels[yfeature]
-                xbins = xvar.binning
-                ybins = yvar.binning
+                if ndims==1: continue  # only plot 1D features; still calculate 2D features
+
+                hist = Histogram2D()
 
                 hist.colormap = 'default'
                 hist.colorbar['title'] = "Events"
@@ -182,25 +205,22 @@ class Empire(object):
 
                 hist.initialize()
 
-                # save memory by making the histogram here and passing the result to hepPlotter
-                h,binsx,binsy = np.histogram2d(c.df[xfeature],c.df[yfeature],bins=[xbins,ybins])
-                histValues[c.name] = h
-                # h[0] yields the y-axis array for the first bin in x
-
                 # create dummy binning
-                xdummy = binsx.repeat(len(binsy)-1)
-                ydummy = np.tile(binsy, (1,len(binsx)-1) )[0]
+                binsx  = 0.5*(binsx[:-1]+binsx[1:])
+                binsy  = 0.5*(binsy[:-1]+binsy[1:])
+                xdummy = binsx.repeat(len(binsy))
+                ydummy = np.tile(binsy, (1,len(binsx)) )[0]
 
                 hist.Add([xdummy,ydummy],weights=h.flatten(),name=c.name)
 
                 p = hist.execute()
-                hist.savefig()
+                hist.savefig(dpi=100)
 
             ## Calculate 2D separations for these features between classes
             for pair in self.class_pairs:
                 data_a = histValues[pair[0]]
                 data_b = histValues[pair[1]]
-                separation = util.getSeparation2D(data_a,data_b)
+                separation = util.getSeparation(data_a,data_b)
                 self.separations['-'.join(featurepairs)]['-'.join(pair)] = separation
 
         ## ++ Save separation info to CSV file
@@ -219,9 +239,9 @@ class Empire(object):
                 separation = self.separations[f]['-'.join(pair)]
                 if '-' in f:
                     feature_x,feature_y = f.split('-')
-                    fcsv2.write("{0},{1},{2}".format(feature_x,feature_y,separation))
+                    fcsv2.write("{0},{1},{2}\n".format(feature_x,feature_y,separation))
                 else:
-                    fcsv1.write("{0},{1}".format(f,))
+                    fcsv1.write("{0},{1}\n".format(f,separation))
 
             fcsv1.close() 
             fcsv2.close() 
@@ -232,7 +252,7 @@ class Empire(object):
 
     def separation(self):
         """Plot the separations between classes of the NN for different features"""
-        if not self.loaded_separations: return
+        self.msg_svc.DEBUG("DL : Plotting separations.")
 
         listOfFeatures     = list(self.features)
         listOfFeaturePairs = list(self.featurePairs)
@@ -243,6 +263,9 @@ class Empire(object):
         for target in self.class_pairs:
             target_a = target[0]
             target_b = target[1]
+
+            target_a_label = self.sample_labels[target_a].label
+            target_b_label = self.sample_labels[target_b].label
 
             ##                                 ##
             ## One dimensional separation plot ##
@@ -263,12 +286,13 @@ class Empire(object):
             ax.set_yticks(listOfFeatures)
             ax.set_yticklabels(featurelabels,fontsize=12)
             ax.set_xticklabels([self.formatter(i) for i in ax.get_xticks()])
+            ax.set_xlabel("Separation",ha='right',va='top',position=(1,0))
 
             # CMS/COM Energy Label + Signal name
             self.stamp_cms(ax)
             self.stamp_energy(ax)
-            ax.text(0.95,0.05,"{0} - {1}".format(target_a,target_b),fontsize=16,
-                    ha='right',va='bottom',transform=ax.transAxes)
+            ax.text(0.95,0.05,"{0} - {1}".format(target_a_label,target_b_label),
+                              fontsize=16,ha='right',va='bottom',transform=ax.transAxes)
 
             plt.savefig("{0}.{1}".format(saveAs,self.image_format))
             plt.close()
@@ -295,6 +319,8 @@ class Empire(object):
             hist.colormap = 'default'
             hist.colorbar['title'] = "Separation"
 
+            hist.x_label = "{0} - {1}".format(target_a_label,target_b_label)
+            hist.y_label = ''
             hist.binning = [range(nfeatures+1),range(nfeatures+1)]
             hist.format  = self.image_format
             hist.saveAs  = saveAs
@@ -310,8 +336,8 @@ class Empire(object):
             ax = fig.gca()
             ax.set_xticks(np.arange(nfeatures)+0.5, minor=False)
             ax.set_yticks(np.arange(nfeatures)+0.5, minor=False)
-            ax.set_xticklabels(featurelabels, minor=False, ha='right', rotation=70)
-            ax.set_yticklabels(featurelabels, minor=False)
+            ax.set_xticklabels(featurelabels, minor=False, ha='right', rotation=70, fontsize=12)
+            ax.set_yticklabels(featurelabels, minor=False, fontsize=12)
 
             hist.savefig()
 
@@ -320,6 +346,8 @@ class Empire(object):
 
     def correlation(self,corrmats={}):
         """Plot correlations between features of the NN"""
+        self.msg_svc.DEBUG("DL : Plotting correlations.")
+
         opts = {'cmap':plt.get_cmap("bwr"),'vmin':-1,'vmax':1}
 
         for c in self.classCollection:
@@ -368,10 +396,10 @@ class Empire(object):
           (e.g., QCD prediction to be QCD; Top prediction to be QCD, etc)
           Need two-dimensional arrays/dictionaries to achieve this
         """
-        self.msg_svc.INFO("DL : Plotting DNN prediction. ")
+        self.msg_svc.DEBUG("DL : Plotting DNN prediction. ")
 
         for c in self.classCollection:
-            target_label = self.sample_labels[c.name]
+            target_label = self.sample_labels[c.name].label
             hist = Histogram1D()
 
             hist.normed  = True  # compare shape differences (likely don't have the same event yield)
@@ -382,7 +410,7 @@ class Empire(object):
             hist.y_label = "A.U."
             hist.CMSlabel = 'outer'
             hist.CMSlabelStatus   = self.CMSlabelStatus
-            hist.legend['fontsize'] = 14
+            hist.legend['fontsize'] = 10
 
             hist.ratio.value  = "ratio"
             hist.ratio.ylabel = "Train/Test"
@@ -392,29 +420,37 @@ class Empire(object):
             json_data = {}
             for t,cc in enumerate(self.classCollection):
 
-                target_value = target.value  # arrays for multiclassification 
+                target_value = cc.value  # arrays for multiclassification 
 
                 train_t = train_data[c.name][cc.name]
-                test_t  = test_data[c.name][cc.name]
+                train_weights = train_t[0]
+                train_bins    = train_t[1]
+                train_dummy   = hpt.midpoints(train_bins)
+                train_kwargs  = {"draw_type":"step","edgecolor":cc.color,
+                                 "label":cc.label+" Train"}
 
-                train_kwargs = {"draw_type":"step","edgecolor":cc.color,
-                                "label":cc.label+" Train"}
+                test_t  = test_data[c.name][cc.name]
+                test_weights = test_t[0]
+                test_bins    = test_t[1]
+                test_dummy   = hpt.midpoints(test_bins)
                 test_kwargs  = {"draw_type":"stepfilled","edgecolor":cc.color,
                                 "color":cc.color,"linewidth":0,"alpha":0.5,
                                 "label":cc.label+" Test"}
 
-                hist.Add(train_t,name=cc.name+'_train',**train_kwargs) # Training
-                hist.Add(test_t,name=cc.name+'_test',**test_kwargs)    # Testing
+                hist.binning = train_bins  # should be the same for train/test
+
+                hist.Add(train_dummy,weights=train_weights,\
+                         name=cc.name+'_train',**train_kwargs) # Training
+                hist.Add(test_dummy,weights=test_weights,\
+                         name=cc.name+'_test',**test_kwargs)    # Testing
 
                 hist.ratio.Add(numerator=cc.name+'_train',denominator=cc.name+'_test')
 
                 ## Save data to JSON file
-                d_tr = hpt.hist2list(train_t)
-                d_te = hpt.hist2list(test_t)
-                json_data[cc.name+"_train"] = {"binning":d_tr.bins.tolist(),
-                                               "content":d_tr.content.tolist()}
-                json_data[cc.name+"_test"]  = {"binning":d_te.bins.tolist(),
-                                               "content":d_te.content.tolist()}
+                json_data[cc.name+"_train"] = {"binning":train_t[1].tolist(),
+                                               "content":train_t[0].tolist()}
+                json_data[cc.name+"_test"]  = {"binning":test_t[1].tolist(),
+                                               "content":test_t[0].tolist()}
 
             p = hist.execute()
             hist.savefig()
@@ -424,7 +460,7 @@ class Empire(object):
             for t,target in enumerate(self.class_pairs):
                 data_a = json_data[ target[0]+"_test" ]["content"]
                 data_b = json_data[ target[1]+"_test" ]["content"]
-                separation = util.getSeparation(data_a,data_b)
+                separation = util.getSeparation(np.asarray(data_a),np.asarray(data_b))
                 json_data[ '-'.join(target)+"_test" ] = {"separation":separation}
                 separations['-'.join(target)] = separation
 
@@ -434,20 +470,28 @@ class Empire(object):
 
 
             ## Plot separation between predictions for given target
-            saveAs = "{0}/hist_DNN_prediction_sep_{1}".format(self.output_dir,tt.name)
+            saveAs = "{0}/hist_DNN_prediction_sep_{1}".format(self.output_dir,c.name)
             sorted_sep = sorted(separations, key=separations.__getitem__) # sort data by separation value
+            ypos = np.arange(len(sorted_sep))
 
             # make the bar plot
             fig,ax = plt.subplots()
-            ax.barh(sorted_sep, [separations[i] for i in sorted_sep], align='center')
-            ax.set_yticks(sorted_sep)
-            ax.set_yticklabels('{0}-{1}'.format(sorted_sep[0],sorted_sep[1]),fontsize=12)
+            ax.barh(ypos, [separations[i] for i in sorted_sep], align='center')
+            ax.set_yticks(ypos)
+            yticklabels = []
+            for i in sorted_sep:
+                split  = i.split("-")
+                first  = self.sample_labels[ split[0] ].label
+                second = self.sample_labels[ split[1] ].label
+                yticklabels.append( '{0}-{1}'.format(first,second) )
+            ax.set_yticklabels(yticklabels,fontsize=12)
             ax.set_xticklabels([self.formatter(i) for i in ax.get_xticks()])
+            ax.set_xlabel("Separation",ha='right',va='top',position=(1,0))
 
             # CMS/COM Energy Label + Signal name
             self.stamp_cms(ax)
             self.stamp_energy(ax)
-            ax.text(0.95,0.5,"DNN Prediction: {0}".format(target_label),fontsize=16,
+            ax.text(0.95,0.05,"DNN Prediction: {0}".format(target_label),fontsize=16,
                     ha='right',va='bottom',transform=ax.transAxes)
 
             plt.savefig("{0}.{1}".format(saveAs,self.image_format))
@@ -459,7 +503,7 @@ class Empire(object):
 
     def ROC(self,fprs={},tprs={},roc_auc={}):
         """Plot the ROC curve & save to text file"""
-        self.msg_svc.INFO("DL : Plotting ROC curve.")
+        self.msg_svc.DEBUG("DL : Plotting ROC curve.")
 
         saveAs = "{0}/roc_curve".format(self.output_dir)
 
@@ -481,8 +525,8 @@ class Empire(object):
         ax.set_xlim([0.0, 1.0])
         ax.set_ylim([0.0, 1.5])
 
-        ax.set_xlabel(r'Background $\epsilon',ha='right',va='top',position=(1,0))
-        ax.set_ylabel(r'Signal $epsilon',ha='right',va='bottom',position=(0,1))
+        ax.set_xlabel(r'Background $\epsilon$',ha='right',va='top',position=(1,0))
+        ax.set_ylabel(r'Signal $\epsilon$',ha='right',va='bottom',position=(0,1))
 
         ax.set_xticklabels([self.formatter(i) for i in ax.get_xticks()],fontsize=20)
         ax.set_yticklabels([self.formatter(i) for i in ax.get_yticks()],fontsize=20)
@@ -491,7 +535,7 @@ class Empire(object):
         self.stamp_cms(ax)
         self.stamp_energy(ax)
 
-        leg = ax.legend()
+        leg = ax.legend(fontsize=12,ncol=2)
         leg.draw_frame(False)
 
         plt.savefig('{0}.{1}'.format(saveAs,self.image_format))
@@ -525,7 +569,7 @@ class Empire(object):
 
     def history(self,history,kfold=-1):
         """Plot history as a function of epoch for model"""
-        self.msg_svc.INFO("DL : Plotting loss as a function of epoch number.")
+        self.msg_svc.DEBUG("DL : Plotting loss as a function of epoch number.")
 
         for key in ['loss','acc']:
             fig,ax = plt.subplots()
@@ -545,10 +589,10 @@ class Empire(object):
             self.stamp_cms(ax)
             self.stamp_energy(ax)
 
-            leg = ax.legend(loc=1,numpoints=1,fontsize=12,ncol=1,columnspacing=0.3)
+            leg = ax.legend(loc=0,numpoints=1,fontsize=12,ncol=1,columnspacing=0.3)
             leg.draw_frame(False)
 
-            plt.savefig(self.output_dir+'/{0}_epochs.{2}'.format(key,self.image_format),
+            plt.savefig(self.output_dir+'/{0}_epochs.{1}'.format(key,self.image_format),
                         format=self.image_format,bbox_inches='tight',dpi=200)
             plt.close()
 
@@ -559,13 +603,11 @@ class Empire(object):
     def stamp_energy(self,axis,ha='right',coords=[0.99,1.00],fontsize=16,va='bottom'):
         energy_stamp = hpl.EnergyStamp()
         axis.text(coords[0],coords[1],energy_stamp.text,fontsize=fontsize,ha=ha,va=va,transform=axis.transAxes)
-
         return
 
     def stamp_cms(self,axis,ha='left',va='bottom',coords=[0.02,1.00],fontsize=16):
         cms_stamp = hpl.CMSStamp(self.CMSlabelStatus)
         axis.text(coords[0],coords[1],cms_stamp.text,fontsize=fontsize,ha=ha,va=va,transform=axis.transAxes)
-
         return
 
 

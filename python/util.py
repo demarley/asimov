@@ -11,7 +11,7 @@ File that holds any and all misc. functions / objects
 to be called from other python scripts.
 (All information in one file => one location to update!)
 """
-
+import numpy as np
 
 
 class NNClass(object):
@@ -96,12 +96,21 @@ def getHistSeparation( sig,bkg ):
 
 def getSeparation( sig,bkg ):
     """Calculate separation between two numpy arrays (any dimension!)"""
-    assert sig.shape==bkg.shape
-    assert sig+bkg!=0
+    try:
+        matching_shapes = sig.shape==bkg.shape
+    except AttributeError:
+        matching_shapes = len(sig)==len(bkg)
+    sig_sum  = np.all(sig==0)
+    bkg_sum  = np.all(bkg==0)
+    zero_sum = np.all(sig+bkg==0)
 
-    sig /= sig.sum()
-    bkg /= bkg.sum()
-    tmp  = (sig-bkg)**2/(sig+bkg)
+    if not matching_shapes: return -1
+    if zero_sum or sig_sum or bkg_sum: return -1
+
+    sig = np.divide(sig,np.sum(sig),dtype=np.float32)
+    bkg = np.divide(bkg,np.sum(bkg),dtype=np.float32)
+    tmp = np.divide( (sig-bkg)**2 , (sig+bkg), dtype=np.float32)
+    tmp = np.nan_to_num(tmp)    # set NaN to 0; INF to large number
     separation = tmp.sum()*0.5
 
     return separation
