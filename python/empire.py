@@ -509,7 +509,7 @@ class Empire(object):
         # CMS/COM Energy Label + Signal name
         self.stamp_cms(ax)
         self.stamp_energy(ax)
-        ax.text(0.95,0.05,"DNN Prediction".format(target_label),fontsize=16,
+        ax.text(0.95,0.05,"DNN Prediction{0}".format(target_label),fontsize=16,
                 ha='right',va='bottom',transform=ax.transAxes)
 
         plt.savefig("{0}.{1}".format(saveAs,self.image_format))
