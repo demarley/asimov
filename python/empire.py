@@ -28,11 +28,6 @@ try:
     import Analysis.hepPlotter.labels as hpl
     import Analysis.hepPlotter.tools as hpt
 except KeyError:
-    cwd = os.getcwd()
-    hpd = cwd.replace("asimov","hepPlotter/python/")
-    print cwd,hpd
-    if hpd not in sys.path:
-        sys.path.insert(0,hpd)
     from histogram1D import Histogram1D
     from histogram2D import Histogram2D
     import labels as hpl
@@ -256,7 +251,6 @@ class Empire(object):
 
         listOfFeatures     = list(self.features)
         listOfFeaturePairs = list(self.featurePairs)
-        featurelabels      = [self.variable_labels[f].label for f in self.features]
 
         nfeatures = len(listOfFeatures)
 
@@ -279,6 +273,7 @@ class Empire(object):
             data = list( zip(listOfFeatures,separations) )
             data.sort(key=lambda x: x[1])
             listOfFeatures[:],separations[:] = zip(*data)
+            featurelabels = [self.variable_labels[f].label for f in listOfFeatures]
 
             # make the bar plot
             fig,ax = plt.subplots()
@@ -441,8 +436,8 @@ class Empire(object):
 
             # Access histogram data (for binary or multi-classification)
             try:
-                train_t = train_data[target_name][cc.name]
-                test_t  = test_data[target_name][cc.name]
+                train_t = train_data[c.name][cc.name]
+                test_t  = test_data[c.name][cc.name]
             except:
                 train_t = train_data[cc.name]
                 test_t  = test_data[cc.name]
@@ -550,7 +545,7 @@ class Empire(object):
         for k,key in enumerate(keys):
             label = 'AUC={0:.2f}'.format(roc_auc[key])
             if not binary:
-                label = self.sample_labels[key].label+' {1}'.format(label)
+                label = self.sample_labels[key].label+' {0}'.format(label)
             ax.plot(fprs[key],tprs[key],label=label,lw=2)
 
             # save ROC curve to CSV file (to plot later)
@@ -579,7 +574,7 @@ class Empire(object):
         return
 
 
-    def plot_history(self,history,ax=None,key='loss',index=-1):
+    def plot_history(self,history,ax=None,key='loss'):
         """Draw history of model"""
         try:
             loss     = history.history[key]
@@ -589,22 +584,21 @@ class Empire(object):
             val_loss = None
 
         x = range(1,len(loss)+1)
-        label = key.title()
-        if index>=0: label += ' {0}'.format(index)
-        ax.plot(x,loss,label=label)
+        ax.plot(x,loss,label='Training')
         csv = [ "{0},{1}\n".format(i,j) for i,j in zip(x,loss) ]
 
         if val_loss is not None:
-            label = 'Validation {0}'.format(index) if index>=0 else 'Validation'
+            label = 'Validation'
             ax.plot(x,val_loss,label=label)
             csv += [ "{0},{1}\n".format(i,j) for i,j in zip(x,val_loss) ]
 
         return csv
 
 
-    def history(self,history,kfold=-1):
+    def history(self,history):
         """Plot history as a function of epoch for model"""
         self.msg_svc.DEBUG("DL : Plotting loss as a function of epoch number.")
+        ylabels = {'loss':'Loss','acc':'Accuracy'}
 
         for key in ['loss','acc']:
             fig,ax = plt.subplots()
@@ -615,7 +609,7 @@ class Empire(object):
             util.to_csv(filename,csv)
 
             ax.set_xlabel('Epoch',fontsize=22,ha='right',va='top',position=(1,0))
-            ax.set_ylabel(key.title(),fontsize=22,ha='right',va='bottom',position=(0,1))
+            ax.set_ylabel(ylabels[key],fontsize=22,ha='right',va='bottom',position=(0,1))
 
             ax.set_xticklabels([self.formatter(i) for i in ax.get_xticks()],fontsize=20)
             ax.set_yticklabels(['']+[self.formatter(i) for i in ax.get_yticks()[1:-1]]+[''],fontsize=20)

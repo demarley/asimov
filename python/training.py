@@ -226,7 +226,7 @@ class Training(Foundation):
 
 
         # Plot the predictions to compare test/train
-        self.msg_svc.INFO("DL : Plot the train/test predictions")
+        self.msg_svc.INFO("TRAINING : Plot the train/test predictions")
         self.plotter.prediction(h_trains,h_tests,binary)   # compare DNN prediction for different targets
 
         self.msg_svc.DEBUG("TRAINING :   Finished fitting model ")
