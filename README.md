@@ -9,6 +9,11 @@ The framework uses a single text file to quickly prototype different hyperparame
 Relevant plots (to our analysis work) are generated with [hepPlotter](https://github.com/demarley/hepPlotter).
 Hopefully this framework is useful for getting started and requires little modification for other users.
 
+NB: For those interested, it is possible to run this setup using Google Colab.
+Feel free to have a look at [asimov_demo.ipynb](https://colab.research.google.com/drive/1sb0-Yy71aS1zPOqIJZw9Y-BwEN8SVV0l). 
+This is modeled after the example notebook [0-simple.ipynb](https://github.com/demarley/asimov/blob/master/examples/0-simple.ipynb) that uses the data from the Higgs Boson ML Challenge.  
+There are a few known issues (e.g., LaTeX isn't available for plot labels), but the code runs rather successfully on both TPUs and GPUs.
+
 ## Getting Started
 
 Clone the repository and the hepPlotter repository (Asimov uses hepPlotter to make plots):
