@@ -70,6 +70,7 @@ class Foundation(object):
         self.runDiagnostics = False     # Make plots pre/post training
         self.msg_svc = None
         self.verbose = True
+        self.backend = 'uproot'         # backend for making plots with hepPlotter
         self.equal_statistics = True    # Equal statistics for each class in the df
 
 
@@ -92,6 +93,7 @@ class Foundation(object):
 
         ## -- Plotting framework
         self.plotter = Empire()  # class for plotting relevant NN information
+        self.plotter.backend      = self.backend
         self.plotter.output_dir   = self.output_dir
         self.plotter.image_format = 'pdf'
         self.plotter.features     = self.features
