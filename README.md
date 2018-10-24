@@ -81,8 +81,8 @@ matplotlib | 2.2.2
 numpy      | 1.14.1
 keras      | 2.0.8 (with Tensorflow backend)
 tensorflow | 1.4.1 (tensorflow-gpu)
-uproot     | 2.9.0
-hepPlotter | v0.3 (developed using [Goldilocks](https://github.com/demarley/goldilocks))
+uproot     | 3.2.5 (used in hepPlotter)
+hepPlotter | v0.4.2 (developed using [Goldilocks](https://github.com/demarley/goldilocks))
 cuda       | V9.0.176
 
 Furthermore, this setup has access to an NVIDIA 1080Ti (with `NVIDIA-SMI 390.87`).
