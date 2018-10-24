@@ -49,6 +49,7 @@ class Empire(object):
         self.sample_labels   = {}                               # Formatted sample labels
         self.variable_labels = {}                               # Formatted variable labels
 
+        self.backend      = 'uproot'        # backend for hepPlotter
         self.msg_svc      = util.VERBOSE()  # 'level' for printing statements
         self.output_dir   = ''              # directory/path to store the plots
         self.image_format = 'pdf'           # figure format (PDF matches with backend!)
@@ -103,6 +104,7 @@ class Empire(object):
 
             hist = Histogram1D()
 
+            hist.backend = self.backend
             hist.normed  = True
             hist.stacked = False
             hist.binning = vl.binning
@@ -181,6 +183,7 @@ class Empire(object):
 
                 hist = Histogram2D()
 
+                hist.backend  = self.backend
                 hist.colormap = 'default'
                 hist.colorbar['title'] = "Events"
 
@@ -304,8 +307,8 @@ class Empire(object):
             separations = [self.separations['-'.join(f)]['-'.join(target)] for f in listOfFeaturePairs]
 
             # Now repeat the entries with flipped indices to get the full matrix
-            x = list(x_coord)+list(y_coord)
-            y = list(y_coord)+list(x_coord)
+            x = np.asarray(list(x_coord)+list(y_coord))
+            y = np.asarray(list(y_coord)+list(x_coord))
             separations += separations
 
             # make the plot
@@ -314,6 +317,7 @@ class Empire(object):
             hist.colormap = 'default'
             hist.colorbar['title'] = "Separation"
 
+            hist.backend = self.backend
             hist.x_label = "{0} - {1}".format(target_a_label,target_b_label)
             hist.y_label = ''
             hist.binning = [range(nfeatures+1),range(nfeatures+1)]
@@ -323,7 +327,7 @@ class Empire(object):
             hist.CMSlabelStatus = self.CMSlabelStatus
 
             hist.initialize()
-            hist.Add([x,y],weights=separations,name='-'.join(target))
+            hist.Add([x,y],weights=np.asarray(separations),name='-'.join(target))
 
             fig = hist.execute()
 
@@ -414,6 +418,7 @@ class Empire(object):
 
         hist = Histogram1D()
 
+        hist.backend = self.backend
         hist.normed  = True  # compare shape differences (likely don't have the same event yield)
         hist.format  = self.image_format
         hist.saveAs  = "{0}/hist_DNN_prediction{1}".format(self.output_dir,target_name)
