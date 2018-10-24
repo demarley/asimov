@@ -17,7 +17,7 @@ Clone the repository and the hepPlotter repository (Asimov uses hepPlotter to ma
 git clone https://github.com/demarley/asimov.git
 git clone https://github.com/demarley/hepPlotter.git
 cd hepPlotter/
-git checkout tags/v0.3    # current compatibility
+git checkout tags/v0.4.2    # current compatibility
 ```
 
 Please see the `examples/` directory for an example on using this framework with data from the Higgs Boson Machine Learning Challenge.
